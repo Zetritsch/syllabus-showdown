@@ -18,4 +18,5 @@ Codex helped narrow the scope, compare delivery architectures, define the techni
 
 ## Verification
 
-- Pending initial lint and production build.
+- `npm run lint` passes.
+- `npm run build` completes successfully with a statically prerendered landing route.
