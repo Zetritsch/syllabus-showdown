@@ -44,8 +44,22 @@ export function RoomLobby({ code, name, isHost }: { code: string; name: string; 
         if (next === "SUBSCRIBED") { setStatus("live"); await channel.track(self); }
         if (next === "CHANNEL_ERROR" || next === "TIMED_OUT") setStatus("demo");
       });
-    return () => { void channel.untrack(); void supabase.removeChannel(channel); };
-  }, [clientId, code, name, router, self]);
+    const gameChannel = isHost ? null : supabase.channel(`game:${code}`, { config: { broadcast: { ack: true, self: false } } });
+    gameChannel?.on("broadcast", { event: "state-sync" }, ({ payload }) => {
+      if (payload.targetId !== clientId) return;
+      const parsed = gamePackSchema.safeParse(payload.pack);
+      if (!parsed.success) return;
+      sessionStorage.setItem(`showdown:pack:${code}`, JSON.stringify(parsed.data));
+      sessionStorage.setItem(`showdown:player:${code}:${name}:state`, JSON.stringify({ score: 0, answeredRound: -1, roundIndex: Number(payload.roundIndex) || 0, phase: "question" }));
+      router.push(`/demo?room=${code}&role=player&name=${encodeURIComponent(name)}`);
+    }).subscribe(async next => {
+      if (next === "SUBSCRIBED") await gameChannel.send({ type: "broadcast", event: "state-request", payload: { clientId } });
+    });
+    return () => {
+      void channel.untrack(); void supabase.removeChannel(channel);
+      if (gameChannel) void supabase.removeChannel(gameChannel);
+    };
+  }, [clientId, code, isHost, name, router, self]);
 
   async function start() {
     const supabase = getSupabaseBrowserClient();

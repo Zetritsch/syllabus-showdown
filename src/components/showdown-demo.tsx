@@ -18,7 +18,15 @@ const demoPlayers = [
 type LivePlayer = { id: string; name: string; score: number; answeredRound: number; role: "host" | "player" };
 
 export function ShowdownDemo({ pack = demoPack, roomCode, isHost = true, playerName = "You" }: { pack?: GamePack; roomCode?: string; isHost?: boolean; playerName?: string }) {
-  const [clientId] = useState(() => typeof window === "undefined" ? "server-player" : crypto.randomUUID());
+  const playerStorageKey = `showdown:player:${roomCode || "solo"}:${playerName}`;
+  const [clientId] = useState(() => {
+    if (typeof window === "undefined") return "server-player";
+    const existing = sessionStorage.getItem(`${playerStorageKey}:id`);
+    if (existing) return existing;
+    const created = crypto.randomUUID();
+    sessionStorage.setItem(`${playerStorageKey}:id`, created);
+    return created;
+  });
   const [activePack, setActivePack] = useState(pack);
   const [phase, setPhase] = useState<Phase>(roomCode ? "question" : "lobby");
   const [roundIndex, setRoundIndex] = useState(0);
@@ -30,7 +38,10 @@ export function ShowdownDemo({ pack = demoPack, roomCode, isHost = true, playerN
   const [answeredRound, setAnsweredRound] = useState(-1);
   const [livePlayers, setLivePlayers] = useState<LivePlayer[]>([]);
   const channelRef = useRef<RealtimeChannel | null>(null);
+  const gameStateRef = useRef({ roundIndex, phase, pack: activePack });
   const round = activePack.rounds[roundIndex];
+
+  useEffect(() => { gameStateRef.current = { roundIndex, phase, pack: activePack }; }, [activePack, phase, roundIndex]);
 
   useEffect(() => {
     if (!roomCode) return;
@@ -40,7 +51,19 @@ export function ShowdownDemo({ pack = demoPack, roomCode, isHost = true, playerN
       const parsed = gamePackSchema.safeParse(JSON.parse(stored));
       if (parsed.success) queueMicrotask(() => setActivePack(parsed.data));
     } catch { /* keep deterministic fallback */ }
-  }, [roomCode]);
+    const saved = sessionStorage.getItem(`${playerStorageKey}:state`);
+    if (saved) {
+      try {
+        const state = JSON.parse(saved) as { score?: number; answeredRound?: number; roundIndex?: number; phase?: Phase };
+        queueMicrotask(() => {
+          if (Number.isFinite(state.score)) setScore(Number(state.score));
+          if (Number.isInteger(state.answeredRound)) setAnsweredRound(Number(state.answeredRound));
+          if (Number.isInteger(state.roundIndex) && Number(state.roundIndex) >= 0 && Number(state.roundIndex) < activePack.rounds.length) setRoundIndex(Number(state.roundIndex));
+          if (state.phase && ["question","result","podium"].includes(state.phase)) setPhase(state.phase);
+        });
+      } catch { /* ignore stale recovery data */ }
+    }
+  }, [activePack.rounds.length, playerStorageKey, roomCode]);
 
   useEffect(() => {
     if (!roomCode) return;
@@ -54,11 +77,27 @@ export function ShowdownDemo({ pack = demoPack, roomCode, isHost = true, playerN
       const next = Number(payload.roundIndex);
       if (!Number.isInteger(next) || next < 0 || next >= activePack.rounds.length) return;
       setRoundIndex(next); setAnsweredRound(-1); setSelected(null); setSequence([]); setPhase("question");
+    }).on("broadcast", { event: "state-request" }, async ({ payload }) => {
+      if (!isHost) return;
+      const current = gameStateRef.current;
+      await channel.send({ type: "broadcast", event: "state-sync", payload: { targetId: payload.clientId, pack: current.pack, roundIndex: current.roundIndex } });
+    }).on("broadcast", { event: "state-sync" }, ({ payload }) => {
+      if (payload.targetId !== clientId) return;
+      const parsed = gamePackSchema.safeParse(payload.pack);
+      const next = Number(payload.roundIndex);
+      if (parsed.success) {
+        sessionStorage.setItem(`showdown:pack:${roomCode}`, JSON.stringify(parsed.data));
+        setActivePack(parsed.data);
+      }
+      if (Number.isInteger(next) && next >= 0 && next < (parsed.success ? parsed.data.rounds.length : activePack.rounds.length)) {
+        setRoundIndex(next); setSelected(null); setSequence([]); setPhase("question");
+      }
     }).on("broadcast", { event: "game-finish" }, () => setPhase("podium"))
       .subscribe(async status => {
         if (status === "SUBSCRIBED") {
           setRoomLive(true);
           await channel.track({ id: clientId, name: playerName, score: 0, answeredRound: -1, role: isHost ? "host" : "player" });
+          if (!isHost) await channel.send({ type: "broadcast", event: "state-request", payload: { clientId } });
         }
       });
     channelRef.current = channel;
@@ -69,6 +108,12 @@ export function ShowdownDemo({ pack = demoPack, roomCode, isHost = true, playerN
     if (!roomLive) return;
     void channelRef.current?.track({ id: clientId, name: playerName, score, answeredRound, role: isHost ? "host" : "player" });
   }, [answeredRound, clientId, isHost, playerName, roomLive, score]);
+
+  useEffect(() => {
+    if (!roomCode) return;
+    sessionStorage.setItem(`${playerStorageKey}:state`, JSON.stringify({ score, answeredRound, roundIndex, phase }));
+    if (isHost) sessionStorage.setItem(`showdown:host-state:${roomCode}`, JSON.stringify({ roundIndex, phase }));
+  }, [answeredRound, isHost, phase, playerStorageKey, roomCode, roundIndex, score]);
 
   const correct = useMemo(() => {
     if (round.type === "sequence") return sequence.join("|") === round.correctOrder.join("|");

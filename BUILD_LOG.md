@@ -30,6 +30,8 @@ Codex helped narrow the scope, compare delivery architectures, define the techni
 - Production smoke testing exposed a Vercel timeout with the default GPT-5.6 Sol alias. Switched the latency-sensitive generator to GPT-5.6 Terra with no extra reasoning and a bounded output budget while retaining Structured Outputs and the same validation contract.
 - Connected generated packs to multiplayer rooms: hosts can preview a validated pack, open a room, and broadcast that exact pack to every player at game start.
 - Replaced multiplayer demo scores with Realtime Presence scores, real participant names, answer-completion counts, and a dynamic final ranking.
+- Added state recovery: player IDs, scores, answered rounds, and host progress survive reloads in session storage.
+- Added a Realtime state-request/state-sync handshake so late joiners and reconnecting players receive the current validated pack and active round from the host.
 
 ## Verification
 
