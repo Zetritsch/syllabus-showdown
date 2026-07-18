@@ -52,3 +52,4 @@ Codex helped narrow the scope, compare delivery architectures, define the techni
 - Implemented Hotspot Hunt's crosshair interaction on the original PDF page and added a deterministic circulation diagram to the judge demo.
 - Added explicit Next.js output tracing for the native Linux canvas binding used by the Vercel PDF rendering function.
 - Externalized and traced PDF.js after production diagnostics showed its fake worker path being rewritten inside a Turbopack server chunk.
+- Production Hotspot Hunt test passed: an image-only PDF produced all five round types, selected a source-grounded arrow target on page one, returned normalized coordinates and radius, and embedded the original page as a 49 KB JPEG data URL.
