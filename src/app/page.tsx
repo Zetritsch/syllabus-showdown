@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 const steps = [
   { number: "01", title: "Drop in your material", copy: "Upload a syllabus, chapter, or study guide." },
   { number: "02", title: "Generate the showdown", copy: "GPT-5.6 turns concepts and misconceptions into game rounds." },
@@ -31,12 +33,12 @@ export default function Home() {
             Upload what you need to learn. Syllabus Showdown uses GPT-5.6 to build an adaptive competition your whole study group can play.
           </p>
           <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-            <button className="rounded-2xl bg-[#ffd84d] px-7 py-4 font-black text-[#111329] shadow-[0_10px_35px_rgba(255,216,77,.22)] transition hover:-translate-y-0.5 hover:bg-[#ffe374]">
+            <Link href="/demo" className="rounded-2xl bg-[#ffd84d] px-7 py-4 text-center font-black text-[#111329] shadow-[0_10px_35px_rgba(255,216,77,.22)] transition hover:-translate-y-0.5 hover:bg-[#ffe374]">
               Create a showdown
-            </button>
-            <button className="rounded-2xl border border-white/12 bg-white/[.06] px-7 py-4 font-bold text-white transition hover:bg-white/10">
+            </Link>
+            <Link href="/demo" className="rounded-2xl border border-white/12 bg-white/[.06] px-7 py-4 text-center font-bold text-white transition hover:bg-white/10">
               Try instant demo
-            </button>
+            </Link>
           </div>
           <p className="mt-4 text-sm text-white/38">No account needed · Players join by QR code</p>
         </div>

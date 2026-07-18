@@ -1,0 +1,71 @@
+import { validateGamePack } from "@/lib/game-pack";
+
+export const demoPack = validateGamePack({
+  version: "1.0",
+  title: "Cardiovascular Clash",
+  subject: "Human Biology",
+  sourceLabel: "Chapter 8 · The circulatory system",
+  learningGoals: ["Trace blood through the heart", "Connect vessel structure to function", "Distinguish pressure from oxygenation"],
+  rounds: [
+    {
+      id: "blood-flow",
+      type: "sequence",
+      title: "Sequence Rush",
+      concept: "Blood flow",
+      points: 600,
+      prompt: "Put the stops in order, beginning when oxygen-poor blood enters the heart.",
+      items: [
+        { id: "lungs", label: "Lungs" },
+        { id: "right", label: "Right side of heart" },
+        { id: "body", label: "Body tissues" },
+        { id: "left", label: "Left side of heart" },
+      ],
+      correctOrder: ["right", "lungs", "left", "body"],
+      explanation: "The right heart sends oxygen-poor blood to the lungs; the left heart then sends oxygen-rich blood to the body.",
+    },
+    {
+      id: "vessel-walls",
+      type: "connection",
+      title: "Connection Clash",
+      concept: "Structure and function",
+      points: 800,
+      prompt: "Which feature is most directly connected to an artery's thick muscular wall?",
+      left: "Thick muscular wall",
+      options: [
+        { id: "pressure", label: "Withstands high pressure" },
+        { id: "exchange", label: "Allows rapid diffusion" },
+        { id: "valves", label: "Needs one-way valves" },
+        { id: "storage", label: "Stores oxygen" },
+      ],
+      correctOptionId: "pressure",
+      explanation: "Arteries receive blood directly from the pumping heart, so their elastic muscular walls must tolerate and smooth high pressure.",
+    },
+    {
+      id: "artery-confidence",
+      type: "confidence",
+      title: "Confidence Battle",
+      concept: "Pressure vs. oxygenation",
+      points: 1000,
+      prompt: "Why do arteries usually have thicker walls than veins?",
+      options: [
+        { id: "pressure", label: "They carry blood at higher pressure" },
+        { id: "oxygen", label: "They always carry more oxygen" },
+        { id: "speed", label: "The heart beats faster near them" },
+        { id: "volume", label: "They carry a lower blood volume" },
+      ],
+      correctOptionId: "pressure",
+      misconceptionOptionId: "oxygen",
+      misconception: "Artery does not mean oxygen-rich. Pulmonary arteries carry oxygen-poor blood.",
+      remediation: {
+        prompt: "Quick comeback: which vessel carries oxygen-poor blood away from the heart?",
+        options: [
+          { id: "pulmonary-artery", label: "Pulmonary artery" },
+          { id: "pulmonary-vein", label: "Pulmonary vein" },
+        ],
+        correctOptionId: "pulmonary-artery",
+        explanation: "Vessel names describe direction: arteries go away from the heart, veins return to it.",
+      },
+      explanation: "Wall thickness follows pressure, not oxygen content. Arteries absorb the pressure pulse produced by the heart.",
+    },
+  ],
+});

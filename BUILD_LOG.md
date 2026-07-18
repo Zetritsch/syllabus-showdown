@@ -16,6 +16,13 @@ This log distinguishes work completed during OpenAI Build Week 2026 and records 
 
 Codex helped narrow the scope, compare delivery architectures, define the technical foundation, scaffold the repository, and implement the initial interface. Product and design direction remained human-steered throughout.
 
+## 2026-07-18 — Playable vertical slice
+
+- Defined and runtime-validated a versioned game-pack schema with Zod.
+- Added a deterministic Cardiovascular Clash demo grounded in three learning goals.
+- Implemented the complete judge flow: lobby, live scoreboard, three round mechanics, confidence wagering, adaptive misconception branch, remediation challenge, and podium recap.
+- Kept the demo independent from OpenAI and Supabase so it remains reliable during judging; generated packs and realtime rooms can plug into the same model next.
+
 ## Verification
 
 - `npm run lint` passes.
