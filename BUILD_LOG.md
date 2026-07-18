@@ -47,3 +47,4 @@ Codex helped narrow the scope, compare delivery architectures, define the techni
 - `npm run lint` passes.
 - `npm run build` completes successfully with a statically prerendered landing route.
 - Production scan test passed: a one-page image-only PDF with zero extractable characters returned HTTP 200 and produced a source-grounded sequence, four-zone Visual Map Lab, confidence misconception, and the diagram's complete arrow loop.
+- Production four-round test passed after adding Sort Reactor: the same image-only PDF generated sequence, sort, visual-map, and confidence rounds with two buckets, six items, six validated assignments, four spatial zones, and four diagram links.
