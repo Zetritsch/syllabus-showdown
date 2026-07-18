@@ -42,7 +42,9 @@ export async function POST(request: Request) {
     }
 
     const bytes = new Uint8Array(await file.arrayBuffer());
-    const pdf = await getDocumentProxy(bytes);
+    // PDF.js may transfer/detach the supplied ArrayBuffer, so encode first.
+    const base64 = Buffer.from(bytes).toString("base64");
+    const pdf = await getDocumentProxy(bytes.slice());
     if (pdf.numPages > MAX_VISUAL_PAGES) {
       return Response.json(
         {
@@ -52,7 +54,6 @@ export async function POST(request: Request) {
       );
     }
 
-    const base64 = Buffer.from(bytes).toString("base64");
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const response = await client.responses.parse({
       model: "gpt-5.6-terra",

@@ -38,6 +38,7 @@ Codex helped narrow the scope, compare delivery architectures, define the techni
 - Rebuilt Connection Clash as a three-link concept network with a validated one-to-one answer map, replacing its conventional single-answer multiple-choice interaction.
 - Added a multimodal PDF generation path that sends both PDF text and rendered page images to GPT-5.6, enabling scanned-page and diagram understanding with a strict 12-page cost guardrail.
 - Added the Visual Map Lab schema foundation for reconstructing a source-grounded system or process as a spatial four-zone learning game.
+- Added a regression guard for PDF.js buffer transfer so the same validated upload remains intact when forwarded as a multimodal OpenAI file input.
 
 ## Verification
 
