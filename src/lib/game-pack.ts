@@ -91,6 +91,32 @@ const visualMapRound = baseRound.extend({
   explanation: z.string().min(1),
 });
 
+const sortRound = baseRound.extend({
+  type: z.literal("sort"),
+  prompt: z.string().min(1),
+  buckets: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        label: z.string().min(1),
+        glyph: z.string().min(1).max(4),
+      }),
+    )
+    .length(2),
+  items: z
+    .array(z.object({ id: z.string().min(1), label: z.string().min(1) }))
+    .length(6),
+  correctAssignments: z
+    .array(
+      z.object({
+        itemId: z.string().min(1),
+        bucketId: z.string().min(1),
+      }),
+    )
+    .length(6),
+  explanation: z.string().min(1),
+});
+
 export const gamePackSchema = z.object({
   version: z.literal("1.0"),
   title: z.string().min(1),
@@ -104,6 +130,7 @@ export const gamePackSchema = z.object({
         connectionRound,
         confidenceRound,
         visualMapRound,
+        sortRound,
       ]),
     )
     .min(3),
@@ -150,6 +177,22 @@ export function validateGamePack(input: unknown): GamePack {
         )
       ) {
         throw new Error(`Invalid visual map in round ${round.id}`);
+      }
+    } else if (round.type === "sort") {
+      const bucketIds = new Set(round.buckets.map((bucket) => bucket.id));
+      const itemIds = new Set(round.items.map((item) => item.id));
+      const assignedItems = new Set(
+        round.correctAssignments.map((assignment) => assignment.itemId),
+      );
+      if (
+        assignedItems.size !== round.items.length ||
+        round.correctAssignments.some(
+          (assignment) =>
+            !itemIds.has(assignment.itemId) ||
+            !bucketIds.has(assignment.bucketId),
+        )
+      ) {
+        throw new Error(`Invalid sort assignments in round ${round.id}`);
       }
     } else if (
       !round.options.some((option) => option.id === round.correctOptionId)

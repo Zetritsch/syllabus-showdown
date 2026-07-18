@@ -32,6 +32,38 @@ export const demoPack = validateGamePack({
         "The right heart sends oxygen-poor blood to the lungs; the left heart then sends oxygen-rich blood to the body.",
     },
     {
+      id: "vessel-sort",
+      type: "sort",
+      title: "Sort Reactor",
+      concept: "Arteries vs. veins",
+      points: 700,
+      evidence:
+        "Arteries carry blood away from the heart under higher pressure with thicker walls; veins return lower-pressure blood and use valves.",
+      prompt: "Charge both reactors by sorting every vessel feature.",
+      buckets: [
+        { id: "artery", label: "Artery reactor", glyph: "🔴" },
+        { id: "vein", label: "Vein reactor", glyph: "🔵" },
+      ],
+      items: [
+        { id: "away", label: "Carries blood away from heart" },
+        { id: "toward", label: "Returns blood toward heart" },
+        { id: "thick", label: "Thicker muscular wall" },
+        { id: "thin", label: "Thinner wall" },
+        { id: "pressure", label: "Higher pressure" },
+        { id: "valves", label: "One-way valves" },
+      ],
+      correctAssignments: [
+        { itemId: "away", bucketId: "artery" },
+        { itemId: "thick", bucketId: "artery" },
+        { itemId: "pressure", bucketId: "artery" },
+        { itemId: "toward", bucketId: "vein" },
+        { itemId: "thin", bucketId: "vein" },
+        { itemId: "valves", bucketId: "vein" },
+      ],
+      explanation:
+        "Arteries handle high-pressure flow away from the heart; veins guide lower-pressure return flow with valves.",
+    },
+    {
       id: "vessel-walls",
       type: "visual-map",
       title: "Visual Map Lab",

@@ -61,6 +61,10 @@ export function ShowdownDemo({
   const [activeVisualLabel, setActiveVisualLabel] = useState<string | null>(
     null,
   );
+  const [sortAssignments, setSortAssignments] = useState<
+    Record<string, string>
+  >({});
+  const [activeSortItem, setActiveSortItem] = useState<string | null>(null);
   const [roomLive, setRoomLive] = useState(false);
   const [answeredRound, setAnsweredRound] = useState(-1);
   const [livePlayers, setLivePlayers] = useState<LivePlayer[]>([]);
@@ -154,6 +158,8 @@ export function ShowdownDemo({
         setActiveConnectionLeft(null);
         setVisualPlacements({});
         setActiveVisualLabel(null);
+        setSortAssignments({});
+        setActiveSortItem(null);
         setPhase("question");
       })
       .on("broadcast", { event: "state-request" }, async ({ payload }) => {
@@ -195,6 +201,8 @@ export function ShowdownDemo({
           setActiveConnectionLeft(null);
           setVisualPlacements({});
           setActiveVisualLabel(null);
+          setSortAssignments({});
+          setActiveSortItem(null);
           setPhase("question");
         }
       })
@@ -274,8 +282,20 @@ export function ShowdownDemo({
       return round.zones.every(
         (zone) => visualPlacements[zone.id] === zone.answerId,
       );
+    if (round.type === "sort")
+      return round.correctAssignments.every(
+        (assignment) =>
+          sortAssignments[assignment.itemId] === assignment.bucketId,
+      );
     return selected === round.correctOptionId;
-  }, [connections, round, selected, sequence, visualPlacements]);
+  }, [
+    connections,
+    round,
+    selected,
+    sequence,
+    sortAssignments,
+    visualPlacements,
+  ]);
 
   function chooseSequence(id: string) {
     if (phase !== "question") return;
@@ -322,6 +342,25 @@ export function ShowdownDemo({
     setActiveVisualLabel(null);
   }
 
+  function chooseSortItem(itemId: string) {
+    if (phase !== "question") return;
+    setActiveSortItem(itemId);
+  }
+
+  function chooseSortBucket(bucketId: string) {
+    if (phase !== "question" || !activeSortItem) return;
+    assignSortItem(activeSortItem, bucketId);
+  }
+
+  function assignSortItem(itemId: string, bucketId: string) {
+    if (phase !== "question") return;
+    setSortAssignments((current) => ({
+      ...current,
+      [itemId]: bucketId,
+    }));
+    setActiveSortItem(null);
+  }
+
   function submit() {
     const answered =
       round.type === "sequence"
@@ -330,7 +369,9 @@ export function ShowdownDemo({
           ? connections.length === round.leftItems.length
           : round.type === "visual-map"
             ? Object.keys(visualPlacements).length === round.zones.length
-            : selected !== null;
+            : round.type === "sort"
+              ? Object.keys(sortAssignments).length === round.items.length
+              : selected !== null;
     if (!answered) return;
     if (correct)
       setScore(
@@ -381,6 +422,8 @@ export function ShowdownDemo({
       setActiveConnectionLeft(null);
       setVisualPlacements({});
       setActiveVisualLabel(null);
+      setSortAssignments({});
+      setActiveSortItem(null);
       setPhase("question");
     }
   }
@@ -395,6 +438,8 @@ export function ShowdownDemo({
     setActiveConnectionLeft(null);
     setVisualPlacements({});
     setActiveVisualLabel(null);
+    setSortAssignments({});
+    setActiveSortItem(null);
     setConfidence(2);
   }
 
@@ -478,6 +523,8 @@ export function ShowdownDemo({
                 activeConnectionLeft={activeConnectionLeft}
                 visualPlacements={visualPlacements}
                 activeVisualLabel={activeVisualLabel}
+                sortAssignments={sortAssignments}
+                activeSortItem={activeSortItem}
                 confidence={confidence}
                 choose={setSelected}
                 chooseSequence={chooseSequence}
@@ -485,6 +532,9 @@ export function ShowdownDemo({
                 chooseConnectionRight={chooseConnectionRight}
                 chooseVisualLabel={chooseVisualLabel}
                 chooseVisualZone={chooseVisualZone}
+                chooseSortItem={chooseSortItem}
+                chooseSortBucket={chooseSortBucket}
+                assignSortItem={assignSortItem}
                 setConfidence={setConfidence}
                 submit={submit}
               />
@@ -576,6 +626,8 @@ function Question(props: {
   activeConnectionLeft: string | null;
   visualPlacements: Record<string, string>;
   activeVisualLabel: string | null;
+  sortAssignments: Record<string, string>;
+  activeSortItem: string | null;
   confidence: number;
   choose: (id: string) => void;
   chooseSequence: (id: string) => void;
@@ -583,6 +635,9 @@ function Question(props: {
   chooseConnectionRight: (id: string) => void;
   chooseVisualLabel: (id: string) => void;
   chooseVisualZone: (id: string) => void;
+  chooseSortItem: (id: string) => void;
+  chooseSortBucket: (id: string) => void;
+  assignSortItem: (itemId: string, bucketId: string) => void;
   setConfidence: (n: number) => void;
   submit: () => void;
 }) {
@@ -614,6 +669,110 @@ function Question(props: {
         <Submit onClick={props.submit} />{" "}
       </>
     );
+  if (round.type === "sort") {
+    const unassigned = round.items.filter(
+      (item) => !props.sortAssignments[item.id],
+    );
+    return (
+      <>
+        <h2 className="text-xl font-bold leading-8 sm:text-2xl">
+          {round.prompt}
+        </h2>
+        <p className="mt-2 text-sm text-white/40">
+          Tap an item and then a reactor — or drag it directly.
+        </p>
+        <div className="mt-6 rounded-2xl border border-white/8 bg-[#080a19]/45 p-4">
+          <p className="text-xs font-black uppercase tracking-[.16em] text-white/35">
+            Unsorted energy cells · {unassigned.length} remaining
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {unassigned.map((item) => (
+              <button
+                key={item.id}
+                draggable
+                onDragStart={(event) =>
+                  event.dataTransfer.setData("text/plain", item.id)
+                }
+                onClick={() => props.chooseSortItem(item.id)}
+                className={`min-h-16 rounded-xl border p-3 text-left text-sm font-bold transition ${props.activeSortItem === item.id ? "border-[#ffd84d] bg-[#ffd84d]/12 text-[#ffe374]" : "border-white/10 bg-white/[.055] hover:-translate-y-0.5 hover:bg-white/[.1]"}`}
+              >
+                <span className="mr-2 text-white/25">◆</span>
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          {round.buckets.map((bucket, bucketIndex) => {
+            const assigned = round.items.filter(
+              (item) => props.sortAssignments[item.id] === bucket.id,
+            );
+            const color = bucketIndex === 0 ? "#54d9ff" : "#ff6fae";
+            return (
+              <div
+                key={bucket.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => props.chooseSortBucket(bucket.id)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ")
+                    props.chooseSortBucket(bucket.id);
+                }}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  const itemId = event.dataTransfer.getData("text/plain");
+                  if (itemId) props.assignSortItem(itemId, bucket.id);
+                }}
+                className={`min-h-52 cursor-pointer rounded-[1.5rem] border p-4 transition ${props.activeSortItem ? "scale-[1.01] bg-white/[.08]" : "bg-white/[.04]"}`}
+                style={{ borderColor: `${color}66` }}
+              >
+                <div className="flex items-center gap-3 border-b border-white/8 pb-3">
+                  <span
+                    className="grid h-10 w-10 place-items-center rounded-xl text-xl"
+                    style={{ background: `${color}22` }}
+                  >
+                    {bucket.glyph}
+                  </span>
+                  <div>
+                    <b className="block">{bucket.label}</b>
+                    <span className="text-xs text-white/35">
+                      {assigned.length} cells loaded
+                    </span>
+                  </div>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {assigned.map((item) => (
+                    <button
+                      key={item.id}
+                      draggable
+                      onDragStart={(event) => {
+                        event.stopPropagation();
+                        event.dataTransfer.setData("text/plain", item.id);
+                      }}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        props.chooseSortItem(item.id);
+                      }}
+                      className={`w-full rounded-xl border px-3 py-2 text-left text-sm font-bold transition ${props.activeSortItem === item.id ? "border-[#ffd84d] bg-[#ffd84d]/12" : "border-white/8 bg-[#080a19]/55"}`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                  {!assigned.length && (
+                    <p className="py-6 text-center text-xs text-white/25">
+                      Drop matching cells here
+                    </p>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <Submit onClick={props.submit} />
+      </>
+    );
+  }
   if (round.type === "visual-map")
     return (
       <>
