@@ -26,6 +26,7 @@ Codex helped narrow the scope, compare delivery architectures, define the techni
 - Added an AI Game Studio that accepts source material, generates a custom pack, validates it in the browser, and launches it directly in the same playable engine.
 - Added room creation and join flows with shareable six-character codes.
 - Added Supabase Realtime Presence for lobby membership and Broadcast for synchronized game start, plus an explicit single-device fallback when realtime configuration is unavailable.
+- Extended the room session into gameplay: room identity survives navigation, only the host advances shared rounds, players follow round-change and game-finish broadcasts, and connection state stays visible in the game header.
 
 ## Verification
 

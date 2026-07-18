@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { demoPack } from "@/data/demo-pack";
 import type { GamePack, GameRound } from "@/lib/game-pack";
+import { getSupabaseBrowserClient } from "@/lib/supabase";
 
 type Phase = "lobby" | "question" | "result" | "remediation" | "podium";
 const players = [
@@ -13,14 +15,31 @@ const players = [
   { name: "Noor", score: 1510, color: "#9d7cff" },
 ];
 
-export function ShowdownDemo({ pack = demoPack }: { pack?: GamePack }) {
+export function ShowdownDemo({ pack = demoPack, roomCode, isHost = true }: { pack?: GamePack; roomCode?: string; isHost?: boolean }) {
   const [phase, setPhase] = useState<Phase>("lobby");
   const [roundIndex, setRoundIndex] = useState(0);
   const [score, setScore] = useState(1980);
   const [selected, setSelected] = useState<string | null>(null);
   const [confidence, setConfidence] = useState(2);
   const [sequence, setSequence] = useState<string[]>([]);
+  const [roomLive, setRoomLive] = useState(false);
+  const channelRef = useRef<RealtimeChannel | null>(null);
   const round = pack.rounds[roundIndex];
+
+  useEffect(() => {
+    if (!roomCode) return;
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return;
+    const channel = supabase.channel(`game:${roomCode}`, { config: { broadcast: { ack: true, self: false } } });
+    channel.on("broadcast", { event: "round-change" }, ({ payload }) => {
+      const next = Number(payload.roundIndex);
+      if (!Number.isInteger(next) || next < 0 || next >= pack.rounds.length) return;
+      setRoundIndex(next); setSelected(null); setSequence([]); setPhase("question");
+    }).on("broadcast", { event: "game-finish" }, () => setPhase("podium"))
+      .subscribe(status => { if (status === "SUBSCRIBED") setRoomLive(true); });
+    channelRef.current = channel;
+    return () => { channelRef.current = null; void supabase.removeChannel(channel); };
+  }, [pack.rounds.length, roomCode]);
 
   const correct = useMemo(() => {
     if (round.type === "sequence") return sequence.join("|") === round.correctOrder.join("|");
@@ -39,15 +58,21 @@ export function ShowdownDemo({ pack = demoPack }: { pack?: GamePack }) {
     setPhase("result");
   }
 
-  function advance() {
+  async function advance() {
+    if (roomCode && !isHost) return;
     if (round.type === "confidence" && !correct && confidence === 3 && selected === round.misconceptionOptionId) {
       setSelected(null);
       setPhase("remediation");
       return;
     }
-    if (roundIndex === pack.rounds.length - 1) setPhase("podium");
+    if (roundIndex === pack.rounds.length - 1) {
+      if (roomCode) await channelRef.current?.send({ type: "broadcast", event: "game-finish", payload: {} });
+      setPhase("podium");
+    }
     else {
-      setRoundIndex((value) => value + 1);
+      const nextRound = roundIndex + 1;
+      if (roomCode) await channelRef.current?.send({ type: "broadcast", event: "round-change", payload: { roundIndex: nextRound } });
+      setRoundIndex(nextRound);
       setSelected(null);
       setSequence([]);
       setPhase("question");
@@ -65,7 +90,7 @@ export function ShowdownDemo({ pack = demoPack }: { pack?: GamePack }) {
       <div className="arena-grid" />
       <header className="relative z-10 flex items-center justify-between border-b border-white/8 px-5 py-4 lg:px-8">
         <Link href="/" className="flex items-center gap-2 font-black"><span className="grid h-8 w-8 place-items-center rounded-lg bg-[#ffd84d] text-[#111329]">S</span><span className="hidden sm:inline">SYLLABUS SHOWDOWN</span></Link>
-        <div className="flex items-center gap-3"><span className="rounded-full bg-[#72f0c5]/10 px-3 py-1.5 text-xs font-bold text-[#72f0c5]">● LIVE DEMO</span><span className="font-black text-[#ffd84d]">{score.toLocaleString()} pts</span></div>
+        <div className="flex items-center gap-3"><span className={`rounded-full px-3 py-1.5 text-xs font-bold ${roomCode ? "bg-[#54d9ff]/10 text-[#9feaff]" : "bg-[#72f0c5]/10 text-[#72f0c5]"}`}>● {roomCode ? `${roomLive ? "ROOM" : "LINKING"} ${roomCode}` : "LIVE DEMO"}</span><span className="font-black text-[#ffd84d]">{score.toLocaleString()} pts</span></div>
       </header>
 
       {phase === "lobby" ? <Lobby pack={pack} start={() => setPhase("question")} /> : (
@@ -75,7 +100,7 @@ export function ShowdownDemo({ pack = demoPack }: { pack?: GamePack }) {
             {phase === "remediation" && round.type === "confidence" ? (
               <Remediation round={round} selected={selected} choose={setSelected} done={() => { setScore((v) => v + 350); setPhase("podium"); }} />
             ) : phase === "result" ? (
-              <Result round={round} correct={correct} confidence={confidence} advance={advance} />
+              <Result round={round} correct={correct} confidence={confidence} advance={advance} waiting={Boolean(roomCode && !isHost)} />
             ) : (
               <Question round={round} selected={selected} sequence={sequence} confidence={confidence} choose={setSelected} chooseSequence={chooseSequence} setConfidence={setConfidence} submit={submit} />
             )}
@@ -110,9 +135,9 @@ function Question(props: { round: GameRound; selected: string | null; sequence: 
 
 function Submit({ onClick }: { onClick: () => void }) { return <button onClick={onClick} className="mt-7 w-full rounded-2xl bg-[#ffd84d] px-6 py-4 font-black text-[#101329] transition hover:bg-[#ffe374]">Lock in answer</button>; }
 
-function Result({ round, correct, confidence, advance }: { round: GameRound; correct: boolean; confidence: number; advance: () => void }) {
+function Result({ round, correct, confidence, advance, waiting }: { round: GameRound; correct: boolean; confidence: number; advance: () => void; waiting: boolean }) {
   const adaptive = round.type === "confidence" && !correct && confidence === 3;
-  return <div className="py-4"><div className={`inline-flex rounded-full px-4 py-2 text-sm font-black ${correct ? "bg-[#72f0c5]/12 text-[#72f0c5]" : "bg-[#ff6fae]/12 text-[#ff8fbd]"}`}>{correct ? "✓ Correct!" : "Not quite"}</div><h2 className="mt-5 text-3xl font-black">{correct ? `+${Math.round(round.points * (round.type === "confidence" ? confidence / 3 : .7))} points` : adaptive ? "Confidence detected." : "Learn it, then steal the next one."}</h2><p className="mt-4 max-w-2xl text-lg leading-8 text-white/62">{round.explanation}</p>{adaptive && <div className="mt-6 rounded-2xl border border-[#ff6fae]/25 bg-[#ff6fae]/8 p-5"><p className="font-black text-[#ff9bc6]">⚡ Adaptive branch unlocked</p><p className="mt-2 text-sm leading-6 text-white/55">You were highly confident in a common misconception, so the game is changing the next challenge instead of merely showing a red X.</p></div>}<button onClick={advance} className="mt-8 rounded-2xl bg-[#ffd84d] px-7 py-4 font-black text-[#101329]">{adaptive ? "Take comeback round →" : round.id === "artery-confidence" ? "See final results →" : "Next round →"}</button></div>;
+  return <div className="py-4"><div className={`inline-flex rounded-full px-4 py-2 text-sm font-black ${correct ? "bg-[#72f0c5]/12 text-[#72f0c5]" : "bg-[#ff6fae]/12 text-[#ff8fbd]"}`}>{correct ? "✓ Correct!" : "Not quite"}</div><h2 className="mt-5 text-3xl font-black">{correct ? `+${Math.round(round.points * (round.type === "confidence" ? confidence / 3 : .7))} points` : adaptive ? "Confidence detected." : "Learn it, then steal the next one."}</h2><p className="mt-4 max-w-2xl text-lg leading-8 text-white/62">{round.explanation}</p>{adaptive && <div className="mt-6 rounded-2xl border border-[#ff6fae]/25 bg-[#ff6fae]/8 p-5"><p className="font-black text-[#ff9bc6]">⚡ Adaptive branch unlocked</p><p className="mt-2 text-sm leading-6 text-white/55">You were highly confident in a common misconception, so the game is changing the next challenge instead of merely showing a red X.</p></div>}{waiting?<div className="mt-8 inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[.05] px-6 py-4 text-white/55"><span className="h-2 w-2 animate-pulse rounded-full bg-[#72f0c5]"/>Waiting for host to reveal the next round…</div>:<button onClick={advance} className="mt-8 rounded-2xl bg-[#ffd84d] px-7 py-4 font-black text-[#101329]">{adaptive ? "Take comeback round →" : round.id === "artery-confidence" ? "See final results →" : "Next round →"}</button>}</div>;
 }
 
 function Remediation({ round, selected, choose, done }: { round: Extract<GameRound,{type:"confidence"}>; selected: string | null; choose: (id:string)=>void; done:()=>void }) {

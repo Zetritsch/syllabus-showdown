@@ -24,7 +24,7 @@ export function RoomLobby({ code, name, isHost }: { code: string; name: string; 
       const state = channel.presenceState<Player>();
       const online = Object.values(state).flat().map((entry) => ({ id: entry.id, name: entry.name, role: entry.role, onlineAt: entry.onlineAt }));
       setPlayers(online);
-    }).on("broadcast", { event: "game-start" }, () => router.push("/demo"))
+    }).on("broadcast", { event: "game-start" }, () => router.push(`/demo?room=${code}&role=player`))
       .subscribe(async (next) => {
         if (next === "SUBSCRIBED") { setStatus("live"); await channel.track(self); }
         if (next === "CHANNEL_ERROR" || next === "TIMED_OUT") setStatus("demo");
@@ -38,7 +38,7 @@ export function RoomLobby({ code, name, isHost }: { code: string; name: string; 
       const channel = supabase.getChannels().find(item => item.topic.endsWith(`showdown:${code}`));
       await channel?.send({ type: "broadcast", event: "game-start", payload: { at: Date.now() } });
     }
-    router.push("/demo");
+    router.push(`/demo?room=${code}&role=${isHost ? "host" : "player"}`);
   }
 
   async function copyInvite() {
