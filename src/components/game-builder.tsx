@@ -17,26 +17,69 @@ export function GameBuilder() {
   const [solo, setSolo] = useState(false);
   const [hostName, setHostName] = useState("Host");
   const [sourceFileName, setSourceFileName] = useState("");
+  const [sourceDetails, setSourceDetails] = useState("");
+  const [extracting, setExtracting] = useState(false);
 
   async function loadFile(file?: File) {
     if (!file) return;
     const extension = file.name.split(".").pop()?.toLowerCase();
-    if (!extension || !["txt", "md", "markdown"].includes(extension)) {
-      setError("For now, upload a .txt or .md file.");
+    if (!extension || !["txt", "md", "markdown", "pdf"].includes(extension)) {
+      setError("Upload a PDF, .txt, or .md file.");
       return;
     }
-    if (file.size > 250_000) {
-      setError("Keep source files under 250 KB for the hackathon demo.");
+    const isPdf = extension === "pdf";
+    const maxBytes = isPdf ? 4 * 1024 * 1024 : 250_000;
+    if (file.size > maxBytes) {
+      setError(
+        isPdf
+          ? "Keep PDFs under 4 MB for the live demo."
+          : "Keep text files under 250 KB for the live demo.",
+      );
       return;
     }
-    const text = (await file.text()).trim();
-    if (text.length < 200) {
-      setError("The file needs at least 200 characters of learning material.");
-      return;
-    }
-    setMaterial(text.slice(0, 12_000));
-    setSourceFileName(file.name);
+
+    setExtracting(true);
     setError("");
+    try {
+      if (isPdf) {
+        const formData = new FormData();
+        formData.set("file", file);
+        const response = await fetch("/api/extract-pdf", {
+          method: "POST",
+          body: formData,
+        });
+        const data = (await response.json()) as {
+          text?: string;
+          pages?: number;
+          characters?: number;
+          truncated?: boolean;
+          error?: string;
+        };
+        if (!response.ok || !data.text)
+          throw new Error(data.error || "PDF extraction failed.");
+        setMaterial(data.text);
+        setSourceDetails(
+          `${data.pages} page${data.pages === 1 ? "" : "s"} · ${Number(data.characters || data.text.length).toLocaleString()} characters${data.truncated ? " · focused to 12,000" : ""}`,
+        );
+      } else {
+        const text = (await file.text()).trim();
+        if (text.length < 200)
+          throw new Error(
+            "The file needs at least 200 characters of learning material.",
+          );
+        setMaterial(text.slice(0, 12_000));
+        setSourceDetails(
+          `${text.length.toLocaleString()} characters${text.length > 12_000 ? " · focused to 12,000" : ""}`,
+        );
+      }
+      setSourceFileName(file.name);
+    } catch (reason) {
+      setError(
+        reason instanceof Error ? reason.message : "Could not read this file.",
+      );
+    } finally {
+      setExtracting(false);
+    }
   }
   if (pack && solo) return <ShowdownDemo pack={pack} />;
   if (pack) {
@@ -162,18 +205,32 @@ export function GameBuilder() {
               className="mt-7 flex cursor-pointer items-center justify-between rounded-2xl border border-dashed border-[#8f78ff]/40 bg-[#8f78ff]/8 p-4 transition hover:bg-[#8f78ff]/12"
             >
               <span>
-                <b className="block text-sm">Drop notes here or choose a file</b>
-                <span className="text-xs text-white/40">.txt or .md · up to 250 KB</span>
+                <b className="block text-sm">
+                  {extracting
+                    ? "Reading your source…"
+                    : "Drop a syllabus here or choose a file"}
+                </b>
+                <span className="text-xs text-white/40">
+                  PDF up to 4 MB · .txt or .md up to 250 KB
+                </span>
               </span>
-              <span className="rounded-xl bg-white/10 px-3 py-2 text-sm font-black">Upload</span>
+              <span className="rounded-xl bg-white/10 px-3 py-2 text-sm font-black">
+                {extracting ? "Extracting…" : "Upload"}
+              </span>
               <input
                 type="file"
-                accept=".txt,.md,.markdown,text/plain,text/markdown"
+                accept=".pdf,.txt,.md,.markdown,application/pdf,text/plain,text/markdown"
                 className="sr-only"
+                disabled={extracting}
                 onChange={(event) => void loadFile(event.target.files?.[0])}
               />
             </label>
-            {sourceFileName && <p className="mt-2 text-xs font-bold text-[#72f0c5]">✓ Loaded {sourceFileName}</p>}
+            {sourceFileName && (
+              <p className="mt-2 text-xs font-bold text-[#72f0c5]">
+                ✓ Loaded {sourceFileName}
+                {sourceDetails ? ` · ${sourceDetails}` : ""}
+              </p>
+            )}
             <textarea
               value={material}
               onChange={(e) => setMaterial(e.target.value)}
@@ -192,7 +249,7 @@ export function GameBuilder() {
             )}
             <button
               onClick={generate}
-              disabled={loading || material.trim().length < 200}
+              disabled={loading || extracting || material.trim().length < 200}
               className="mt-5 w-full rounded-2xl bg-[#ffd84d] px-7 py-4 font-black text-[#101329] disabled:cursor-not-allowed disabled:opacity-40"
             >
               {loading ? "Designing your rounds…" : "Generate showdown ✦"}

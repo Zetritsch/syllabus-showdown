@@ -11,7 +11,10 @@ const baseRound = z.object({
 const sequenceRound = baseRound.extend({
   type: z.literal("sequence"),
   prompt: z.string().min(1),
-  items: z.array(z.object({ id: z.string(), label: z.string() })).min(3).max(6),
+  items: z
+    .array(z.object({ id: z.string(), label: z.string() }))
+    .min(3)
+    .max(6),
   correctOrder: z.array(z.string()).min(3).max(6),
   explanation: z.string().min(1),
 });
@@ -19,9 +22,20 @@ const sequenceRound = baseRound.extend({
 const connectionRound = baseRound.extend({
   type: z.literal("connection"),
   prompt: z.string().min(1),
-  left: z.string().min(1),
-  options: z.array(z.object({ id: z.string(), label: z.string() })).length(4),
-  correctOptionId: z.string(),
+  leftItems: z
+    .array(z.object({ id: z.string().min(1), label: z.string().min(1) }))
+    .length(3),
+  rightItems: z
+    .array(z.object({ id: z.string().min(1), label: z.string().min(1) }))
+    .length(3),
+  correctPairs: z
+    .array(
+      z.object({
+        leftId: z.string().min(1),
+        rightId: z.string().min(1),
+      }),
+    )
+    .length(3),
   explanation: z.string().min(1),
 });
 
@@ -47,7 +61,15 @@ export const gamePackSchema = z.object({
   subject: z.string().min(1),
   sourceLabel: z.string().min(1),
   learningGoals: z.array(z.string()).min(1),
-  rounds: z.array(z.discriminatedUnion("type", [sequenceRound, connectionRound, confidenceRound])).min(3),
+  rounds: z
+    .array(
+      z.discriminatedUnion("type", [
+        sequenceRound,
+        connectionRound,
+        confidenceRound,
+      ]),
+    )
+    .min(3),
 });
 
 export type GamePack = z.infer<typeof gamePackSchema>;
@@ -58,10 +80,29 @@ export function validateGamePack(input: unknown): GamePack {
   for (const round of pack.rounds) {
     if (round.type === "sequence") {
       const itemIds = new Set(round.items.map((item) => item.id));
-      if (round.correctOrder.length !== round.items.length || round.correctOrder.some((id) => !itemIds.has(id))) {
+      if (
+        round.correctOrder.length !== round.items.length ||
+        round.correctOrder.some((id) => !itemIds.has(id))
+      ) {
         throw new Error(`Invalid answer key in round ${round.id}`);
       }
-    } else if (!round.options.some((option) => option.id === round.correctOptionId)) {
+    } else if (round.type === "connection") {
+      const leftIds = new Set(round.leftItems.map((item) => item.id));
+      const rightIds = new Set(round.rightItems.map((item) => item.id));
+      const usedLeft = new Set(round.correctPairs.map((pair) => pair.leftId));
+      const usedRight = new Set(round.correctPairs.map((pair) => pair.rightId));
+      if (
+        round.correctPairs.some(
+          (pair) => !leftIds.has(pair.leftId) || !rightIds.has(pair.rightId),
+        ) ||
+        usedLeft.size !== round.leftItems.length ||
+        usedRight.size !== round.rightItems.length
+      ) {
+        throw new Error(`Invalid connection map in round ${round.id}`);
+      }
+    } else if (
+      !round.options.some((option) => option.id === round.correctOptionId)
+    ) {
       throw new Error(`Invalid correct option in round ${round.id}`);
     }
   }

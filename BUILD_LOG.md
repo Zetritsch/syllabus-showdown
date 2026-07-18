@@ -34,6 +34,8 @@ Codex helped narrow the scope, compare delivery architectures, define the techni
 - Added a Realtime state-request/state-sync handshake so late joiners and reconnecting players receive the current validated pack and active round from the host.
 - Added source evidence to every validated round and surfaced it alongside answer explanations so judges can see that generated questions remain grounded in the uploaded material.
 - Added drag-and-drop and file selection for plain-text and Markdown study material with size, type, and length guardrails.
+- Added server-side PDF text extraction with page/file limits, encrypted and image-only PDF errors, source metadata, and automatic focusing to the validated 12,000-character generation limit.
+- Rebuilt Connection Clash as a three-link concept network with a validated one-to-one answer map, replacing its conventional single-answer multiple-choice interaction.
 
 ## Verification
 

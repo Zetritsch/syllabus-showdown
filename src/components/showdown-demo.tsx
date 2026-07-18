@@ -8,6 +8,7 @@ import { gamePackSchema, type GamePack, type GameRound } from "@/lib/game-pack";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 
 type Phase = "lobby" | "question" | "result" | "remediation" | "podium";
+type ConnectionPair = { leftId: string; rightId: string };
 const demoPlayers = [
   { name: "Maya", score: 2240, color: "#ff6fae" },
   { name: "You", score: 1980, color: "#ffd84d" },
@@ -50,6 +51,10 @@ export function ShowdownDemo({
   const [selected, setSelected] = useState<string | null>(null);
   const [confidence, setConfidence] = useState(2);
   const [sequence, setSequence] = useState<string[]>([]);
+  const [connections, setConnections] = useState<ConnectionPair[]>([]);
+  const [activeConnectionLeft, setActiveConnectionLeft] = useState<
+    string | null
+  >(null);
   const [roomLive, setRoomLive] = useState(false);
   const [answeredRound, setAnsweredRound] = useState(-1);
   const [livePlayers, setLivePlayers] = useState<LivePlayer[]>([]);
@@ -139,6 +144,8 @@ export function ShowdownDemo({
         setAnsweredRound(-1);
         setSelected(null);
         setSequence([]);
+        setConnections([]);
+        setActiveConnectionLeft(null);
         setPhase("question");
       })
       .on("broadcast", { event: "state-request" }, async ({ payload }) => {
@@ -176,6 +183,8 @@ export function ShowdownDemo({
           setRoundIndex(next);
           setSelected(null);
           setSequence([]);
+          setConnections([]);
+          setActiveConnectionLeft(null);
           setPhase("question");
         }
       })
@@ -240,8 +249,19 @@ export function ShowdownDemo({
   const correct = useMemo(() => {
     if (round.type === "sequence")
       return sequence.join("|") === round.correctOrder.join("|");
+    if (round.type === "connection") {
+      const answerKey = new Set(
+        round.correctPairs.map((pair) => `${pair.leftId}:${pair.rightId}`),
+      );
+      return (
+        connections.length === round.correctPairs.length &&
+        connections.every((pair) =>
+          answerKey.has(`${pair.leftId}:${pair.rightId}`),
+        )
+      );
+    }
     return selected === round.correctOptionId;
-  }, [round, selected, sequence]);
+  }, [connections, round, selected, sequence]);
 
   function chooseSequence(id: string) {
     if (phase !== "question") return;
@@ -252,11 +272,30 @@ export function ShowdownDemo({
     );
   }
 
+  function chooseConnectionLeft(id: string) {
+    if (phase !== "question") return;
+    setConnections((current) => current.filter((pair) => pair.leftId !== id));
+    setActiveConnectionLeft(id);
+  }
+
+  function chooseConnectionRight(id: string) {
+    if (phase !== "question" || !activeConnectionLeft) return;
+    setConnections((current) => [
+      ...current.filter(
+        (pair) => pair.leftId !== activeConnectionLeft && pair.rightId !== id,
+      ),
+      { leftId: activeConnectionLeft, rightId: id },
+    ]);
+    setActiveConnectionLeft(null);
+  }
+
   function submit() {
     const answered =
       round.type === "sequence"
         ? sequence.length === round.items.length
-        : selected !== null;
+        : round.type === "connection"
+          ? connections.length === round.leftItems.length
+          : selected !== null;
     if (!answered) return;
     if (correct)
       setScore(
@@ -303,6 +342,8 @@ export function ShowdownDemo({
       setAnsweredRound(-1);
       setSelected(null);
       setSequence([]);
+      setConnections([]);
+      setActiveConnectionLeft(null);
       setPhase("question");
     }
   }
@@ -313,6 +354,8 @@ export function ShowdownDemo({
     setScore(1980);
     setSelected(null);
     setSequence([]);
+    setConnections([]);
+    setActiveConnectionLeft(null);
     setConfidence(2);
   }
 
@@ -392,9 +435,13 @@ export function ShowdownDemo({
                 round={round}
                 selected={selected}
                 sequence={sequence}
+                connections={connections}
+                activeConnectionLeft={activeConnectionLeft}
                 confidence={confidence}
                 choose={setSelected}
                 chooseSequence={chooseSequence}
+                chooseConnectionLeft={chooseConnectionLeft}
+                chooseConnectionRight={chooseConnectionRight}
                 setConfidence={setConfidence}
                 submit={submit}
               />
@@ -482,9 +529,13 @@ function Question(props: {
   round: GameRound;
   selected: string | null;
   sequence: string[];
+  connections: ConnectionPair[];
+  activeConnectionLeft: string | null;
   confidence: number;
   choose: (id: string) => void;
   chooseSequence: (id: string) => void;
+  chooseConnectionLeft: (id: string) => void;
+  chooseConnectionRight: (id: string) => void;
   setConfidence: (n: number) => void;
   submit: () => void;
 }) {
@@ -516,16 +567,95 @@ function Question(props: {
         <Submit onClick={props.submit} />{" "}
       </>
     );
+  if (round.type === "connection") {
+    const colors = ["#ffd84d", "#54d9ff", "#ff6fae"];
+    return (
+      <>
+        <h2 className="text-xl font-bold leading-8 sm:text-2xl">
+          {round.prompt}
+        </h2>
+        <p className="mt-2 text-sm text-white/40">
+          Choose a concept on the left, then connect its match on the right.
+        </p>
+        <div className="mt-7 grid grid-cols-[1fr_auto_1fr] gap-2 sm:gap-4">
+          <div className="space-y-3">
+            {round.leftItems.map((item) => {
+              const pairIndex = props.connections.findIndex(
+                (pair) => pair.leftId === item.id,
+              );
+              const active = props.activeConnectionLeft === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => props.chooseConnectionLeft(item.id)}
+                  className={`min-h-24 w-full rounded-2xl border p-3 text-left text-sm font-bold transition sm:p-4 ${active ? "border-white bg-white/12" : pairIndex >= 0 ? "bg-white/[.07]" : "border-white/10 bg-white/[.04] hover:bg-white/[.09]"}`}
+                  style={
+                    pairIndex >= 0 && !active
+                      ? { borderColor: colors[pairIndex] }
+                      : undefined
+                  }
+                >
+                  {pairIndex >= 0 && (
+                    <span
+                      className="mb-2 grid h-6 w-6 place-items-center rounded-full text-xs text-[#101329]"
+                      style={{ background: colors[pairIndex] }}
+                    >
+                      {pairIndex + 1}
+                    </span>
+                  )}
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex flex-col justify-around text-center text-white/25">
+            <span>⇄</span>
+            <span>⇄</span>
+            <span>⇄</span>
+          </div>
+          <div className="space-y-3">
+            {round.rightItems.map((item) => {
+              const pairIndex = props.connections.findIndex(
+                (pair) => pair.rightId === item.id,
+              );
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => props.chooseConnectionRight(item.id)}
+                  disabled={!props.activeConnectionLeft}
+                  className={`min-h-24 w-full rounded-2xl border p-3 text-left text-sm font-bold transition sm:p-4 ${pairIndex >= 0 ? "bg-white/[.07]" : props.activeConnectionLeft ? "border-[#54d9ff]/40 bg-[#54d9ff]/7 hover:bg-[#54d9ff]/12" : "border-white/10 bg-white/[.04]"}`}
+                  style={
+                    pairIndex >= 0
+                      ? { borderColor: colors[pairIndex] }
+                      : undefined
+                  }
+                >
+                  {pairIndex >= 0 && (
+                    <span
+                      className="mb-2 grid h-6 w-6 place-items-center rounded-full text-xs text-[#101329]"
+                      style={{ background: colors[pairIndex] }}
+                    >
+                      {pairIndex + 1}
+                    </span>
+                  )}
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <p className="mt-4 text-center text-xs font-bold text-white/35">
+          {props.connections.length} / {round.leftItems.length} links built
+        </p>
+        <Submit onClick={props.submit} />
+      </>
+    );
+  }
   return (
     <>
       <h2 className="text-xl font-bold leading-8 sm:text-2xl">
         {round.prompt}
       </h2>
-      {round.type === "connection" && (
-        <div className="mt-6 rounded-2xl border border-[#54d9ff]/30 bg-[#54d9ff]/8 p-4 text-center font-black text-[#9feaff]">
-          {round.left}
-        </div>
-      )}
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
         {round.options.map((option, i) => (
           <button
