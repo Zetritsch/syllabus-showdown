@@ -26,6 +26,12 @@ export async function POST(request: Request) {
     return Response.json({ pack: validateGamePack(response.output_parsed) });
   } catch (error) {
     console.error("Game pack generation failed", error);
+    if (error instanceof OpenAI.APIError) {
+      return Response.json({
+        error: "OpenAI rejected the generation request.",
+        diagnostic: { status: error.status, code: error.code ?? "api_error", message: error.message.slice(0, 240) },
+      }, { status: 502 });
+    }
     return Response.json({ error: "Generation failed. Please try again." }, { status: 500 });
   }
 }
