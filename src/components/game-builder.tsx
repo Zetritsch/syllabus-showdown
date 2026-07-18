@@ -118,7 +118,7 @@ export function GameBuilder() {
           <p className="mt-3 text-white/50">
             {pack.subject} · {pack.sourceLabel}
           </p>
-          <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {pack.rounds.map((round, index) => (
               <article
                 key={round.id}
@@ -316,11 +316,15 @@ export function GameBuilder() {
                 concepts under pressure
               </li>
               <li>
-                <b className="block text-white">3 · Visual Map Lab</b>Rebuild a
+                <b className="block text-white">3 · Hotspot Hunt</b>Find targets
+                on the original page
+              </li>
+              <li>
+                <b className="block text-white">4 · Visual Map Lab</b>Rebuild a
                 system from diagrams
               </li>
               <li>
-                <b className="block text-white">4 · Confidence Battle</b>Expose
+                <b className="block text-white">5 · Confidence Battle</b>Expose
                 misconceptions
               </li>
             </ul>

@@ -117,6 +117,20 @@ const sortRound = baseRound.extend({
   explanation: z.string().min(1),
 });
 
+const hotspotRound = baseRound.extend({
+  type: z.literal("hotspot"),
+  prompt: z.string().min(1),
+  pageNumber: z.number().int().min(1).max(12),
+  pageImageDataUrl: z.string().nullable(),
+  target: z.object({
+    x: z.number().int().min(5).max(95),
+    y: z.number().int().min(5).max(95),
+    radius: z.number().int().min(6).max(22),
+    label: z.string().min(1),
+  }),
+  explanation: z.string().min(1),
+});
+
 export const gamePackSchema = z.object({
   version: z.literal("1.0"),
   title: z.string().min(1),
@@ -131,6 +145,7 @@ export const gamePackSchema = z.object({
         confidenceRound,
         visualMapRound,
         sortRound,
+        hotspotRound,
       ]),
     )
     .min(3),
@@ -193,6 +208,14 @@ export function validateGamePack(input: unknown): GamePack {
         )
       ) {
         throw new Error(`Invalid sort assignments in round ${round.id}`);
+      }
+    } else if (round.type === "hotspot") {
+      if (
+        round.pageImageDataUrl !== null &&
+        !round.pageImageDataUrl.startsWith("data:image/") &&
+        !round.pageImageDataUrl.startsWith("/")
+      ) {
+        throw new Error(`Invalid hotspot image in round ${round.id}`);
       }
     } else if (
       !round.options.some((option) => option.id === round.correctOptionId)

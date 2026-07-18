@@ -9,6 +9,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase";
 
 type Phase = "lobby" | "question" | "result" | "remediation" | "podium";
 type ConnectionPair = { leftId: string; rightId: string };
+type HotspotPoint = { x: number; y: number };
 const demoPlayers = [
   { name: "Maya", score: 2240, color: "#ff6fae" },
   { name: "You", score: 1980, color: "#ffd84d" },
@@ -65,6 +66,7 @@ export function ShowdownDemo({
     Record<string, string>
   >({});
   const [activeSortItem, setActiveSortItem] = useState<string | null>(null);
+  const [hotspotPoint, setHotspotPoint] = useState<HotspotPoint | null>(null);
   const [roomLive, setRoomLive] = useState(false);
   const [answeredRound, setAnsweredRound] = useState(-1);
   const [livePlayers, setLivePlayers] = useState<LivePlayer[]>([]);
@@ -160,6 +162,7 @@ export function ShowdownDemo({
         setActiveVisualLabel(null);
         setSortAssignments({});
         setActiveSortItem(null);
+        setHotspotPoint(null);
         setPhase("question");
       })
       .on("broadcast", { event: "state-request" }, async ({ payload }) => {
@@ -203,6 +206,7 @@ export function ShowdownDemo({
           setActiveVisualLabel(null);
           setSortAssignments({});
           setActiveSortItem(null);
+          setHotspotPoint(null);
           setPhase("question");
         }
       })
@@ -287,6 +291,14 @@ export function ShowdownDemo({
         (assignment) =>
           sortAssignments[assignment.itemId] === assignment.bucketId,
       );
+    if (round.type === "hotspot") {
+      if (!hotspotPoint) return false;
+      const distance = Math.hypot(
+        hotspotPoint.x - round.target.x,
+        hotspotPoint.y - round.target.y,
+      );
+      return distance <= round.target.radius;
+    }
     return selected === round.correctOptionId;
   }, [
     connections,
@@ -294,6 +306,7 @@ export function ShowdownDemo({
     selected,
     sequence,
     sortAssignments,
+    hotspotPoint,
     visualPlacements,
   ]);
 
@@ -371,7 +384,9 @@ export function ShowdownDemo({
             ? Object.keys(visualPlacements).length === round.zones.length
             : round.type === "sort"
               ? Object.keys(sortAssignments).length === round.items.length
-              : selected !== null;
+              : round.type === "hotspot"
+                ? hotspotPoint !== null
+                : selected !== null;
     if (!answered) return;
     if (correct)
       setScore(
@@ -424,6 +439,7 @@ export function ShowdownDemo({
       setActiveVisualLabel(null);
       setSortAssignments({});
       setActiveSortItem(null);
+      setHotspotPoint(null);
       setPhase("question");
     }
   }
@@ -440,6 +456,7 @@ export function ShowdownDemo({
     setActiveVisualLabel(null);
     setSortAssignments({});
     setActiveSortItem(null);
+    setHotspotPoint(null);
     setConfidence(2);
   }
 
@@ -525,6 +542,7 @@ export function ShowdownDemo({
                 activeVisualLabel={activeVisualLabel}
                 sortAssignments={sortAssignments}
                 activeSortItem={activeSortItem}
+                hotspotPoint={hotspotPoint}
                 confidence={confidence}
                 choose={setSelected}
                 chooseSequence={chooseSequence}
@@ -535,6 +553,7 @@ export function ShowdownDemo({
                 chooseSortItem={chooseSortItem}
                 chooseSortBucket={chooseSortBucket}
                 assignSortItem={assignSortItem}
+                chooseHotspot={setHotspotPoint}
                 setConfidence={setConfidence}
                 submit={submit}
               />
@@ -628,6 +647,7 @@ function Question(props: {
   activeVisualLabel: string | null;
   sortAssignments: Record<string, string>;
   activeSortItem: string | null;
+  hotspotPoint: HotspotPoint | null;
   confidence: number;
   choose: (id: string) => void;
   chooseSequence: (id: string) => void;
@@ -638,6 +658,7 @@ function Question(props: {
   chooseSortItem: (id: string) => void;
   chooseSortBucket: (id: string) => void;
   assignSortItem: (itemId: string, bucketId: string) => void;
+  chooseHotspot: (point: HotspotPoint) => void;
   setConfidence: (n: number) => void;
   submit: () => void;
 }) {
@@ -773,6 +794,74 @@ function Question(props: {
       </>
     );
   }
+  if (round.type === "hotspot")
+    return (
+      <>
+        <h2 className="text-xl font-bold leading-8 sm:text-2xl">
+          {round.prompt}
+        </h2>
+        <p className="mt-2 text-sm text-white/40">
+          Inspect the original page and tap the exact region.
+        </p>
+        <div className="mt-6 rounded-[1.75rem] border border-[#ffd84d]/20 bg-[#080a19]/55 p-3 sm:p-5">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <span className="text-xs font-black uppercase tracking-[.16em] text-[#ffd84d]">
+              Hotspot Hunt
+            </span>
+            <span className="text-xs font-bold text-white/35">
+              Original PDF · page {round.pageNumber}
+            </span>
+          </div>
+          {round.pageImageDataUrl ? (
+            <button
+              onClick={(event) => {
+                const rect = event.currentTarget.getBoundingClientRect();
+                props.chooseHotspot({
+                  x: Math.round(
+                    ((event.clientX - rect.left) / rect.width) * 100,
+                  ),
+                  y: Math.round(
+                    ((event.clientY - rect.top) / rect.height) * 100,
+                  ),
+                });
+              }}
+              className="relative mx-auto block w-full max-w-2xl cursor-crosshair overflow-hidden rounded-xl border border-white/10 bg-white shadow-2xl"
+              aria-label="PDF page. Tap the requested location."
+            >
+              {/* The source is a trusted server-generated data URL or local demo asset. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={round.pageImageDataUrl}
+                alt={`Source PDF page ${round.pageNumber}`}
+                className="block h-auto w-full"
+              />
+              {props.hotspotPoint && (
+                <span
+                  className="pointer-events-none absolute h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-[#ffd84d] bg-[#ffd84d]/25 shadow-[0_0_25px_rgba(255,216,77,.8)]"
+                  style={{
+                    left: `${props.hotspotPoint.x}%`,
+                    top: `${props.hotspotPoint.y}%`,
+                  }}
+                >
+                  <span className="absolute left-1/2 top-1/2 h-1 w-12 -translate-x-1/2 -translate-y-1/2 bg-[#ffd84d]" />
+                  <span className="absolute left-1/2 top-1/2 h-12 w-1 -translate-x-1/2 -translate-y-1/2 bg-[#ffd84d]" />
+                </span>
+              )}
+            </button>
+          ) : (
+            <div className="grid min-h-72 place-items-center rounded-xl border border-dashed border-white/15 text-sm text-white/35">
+              Page preview unavailable
+            </div>
+          )}
+        </div>
+        <p className="mt-3 text-center text-xs font-bold text-white/35">
+          {props.hotspotPoint
+            ? `Target locked at ${props.hotspotPoint.x}% · ${props.hotspotPoint.y}%`
+            : "No marker placed yet"}
+        </p>
+        <Submit onClick={props.submit} />
+      </>
+    );
   if (round.type === "visual-map")
     return (
       <>

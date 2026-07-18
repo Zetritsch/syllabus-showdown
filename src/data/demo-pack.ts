@@ -64,6 +64,26 @@ export const demoPack = validateGamePack({
         "Arteries handle high-pressure flow away from the heart; veins guide lower-pressure return flow with valves.",
     },
     {
+      id: "gas-exchange-hotspot",
+      type: "hotspot",
+      title: "Hotspot Hunt",
+      concept: "Gas exchange",
+      points: 850,
+      evidence:
+        "Blood receives oxygen in the lungs before returning to the left side of the heart.",
+      prompt: "Tap the organ where oxygen enters the bloodstream.",
+      pageNumber: 1,
+      pageImageDataUrl: "/demo-circulation.svg",
+      target: {
+        x: 73,
+        y: 29,
+        radius: 18,
+        label: "Lungs",
+      },
+      explanation:
+        "Gas exchange occurs in the lungs, where oxygen diffuses into the blood and carbon dioxide leaves it.",
+    },
+    {
       id: "vessel-walls",
       type: "visual-map",
       title: "Visual Map Lab",

@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 990">
+  <defs>
+    <linearGradient id="paper" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#f8fbff"/>
+      <stop offset="1" stop-color="#e8eef8"/>
+    </linearGradient>
+    <marker id="arrowBlue" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#3284d6"/></marker>
+    <marker id="arrowRed" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#e35467"/></marker>
+  </defs>
+  <rect width="700" height="990" fill="url(#paper)"/>
+  <text x="55" y="75" fill="#17233d" font-family="Arial, sans-serif" font-size="34" font-weight="700">Double circulation</text>
+  <text x="55" y="108" fill="#62708a" font-family="Arial, sans-serif" font-size="17">Trace oxygen-poor and oxygen-rich blood through the system.</text>
+  <rect x="395" y="185" width="235" height="210" rx="32" fill="#dff6ff" stroke="#56bfe8" stroke-width="5"/>
+  <path d="M455 302 C430 255 446 216 485 214 C515 213 520 245 512 292 C505 333 483 357 455 302 Z" fill="#8cd9f4" stroke="#3284d6" stroke-width="4"/>
+  <path d="M568 302 C593 255 577 216 538 214 C508 213 503 245 511 292 C518 333 540 357 568 302 Z" fill="#8cd9f4" stroke="#3284d6" stroke-width="4"/>
+  <path d="M511 205 L511 172" stroke="#3284d6" stroke-width="7" stroke-linecap="round"/>
+  <text x="512" y="365" text-anchor="middle" fill="#17233d" font-family="Arial, sans-serif" font-size="23" font-weight="700">LUNGS</text>
+  <text x="512" y="387" text-anchor="middle" fill="#62708a" font-family="Arial, sans-serif" font-size="14">gas exchange</text>
+  <rect x="70" y="350" width="245" height="245" rx="32" fill="#fff0f2" stroke="#e76878" stroke-width="5"/>
+  <path d="M191 520 C110 470 127 390 180 407 C202 414 210 433 211 447 C213 432 224 413 245 407 C298 392 313 470 232 520 L211 539 Z" fill="#e35467"/>
+  <path d="M211 447 L211 522" stroke="#fff" stroke-width="5" opacity=".7"/>
+  <text x="192" y="567" text-anchor="middle" fill="#17233d" font-family="Arial, sans-serif" font-size="23" font-weight="700">HEART</text>
+  <rect x="395" y="650" width="235" height="205" rx="32" fill="#fff5df" stroke="#e7b946" stroke-width="5"/>
+  <circle cx="470" cy="735" r="30" fill="#ffd86a"/>
+  <circle cx="555" cy="735" r="30" fill="#ffd86a"/>
+  <circle cx="512" cy="795" r="30" fill="#ffd86a"/>
+  <path d="M470 735 L555 735 L512 795 Z" fill="none" stroke="#d79a24" stroke-width="8"/>
+  <text x="512" y="835" text-anchor="middle" fill="#17233d" font-family="Arial, sans-serif" font-size="23" font-weight="700">BODY TISSUES</text>
+  <path d="M286 395 C332 286 369 263 395 268" fill="none" stroke="#3284d6" stroke-width="12" marker-end="url(#arrowBlue)"/>
+  <path d="M395 335 C352 395 328 431 315 451" fill="none" stroke="#e35467" stroke-width="12" marker-end="url(#arrowRed)"/>
+  <path d="M293 545 C344 642 367 727 395 746" fill="none" stroke="#e35467" stroke-width="12" marker-end="url(#arrowRed)"/>
+  <path d="M395 814 C330 792 285 668 254 594" fill="none" stroke="#3284d6" stroke-width="12" marker-end="url(#arrowBlue)"/>
+  <rect x="55" y="900" width="590" height="48" rx="18" fill="#17233d"/>
+  <circle cx="85" cy="924" r="9" fill="#3284d6"/><text x="105" y="931" fill="#fff" font-family="Arial, sans-serif" font-size="17">oxygen-poor</text>
+  <circle cx="255" cy="924" r="9" fill="#e35467"/><text x="275" y="931" fill="#fff" font-family="Arial, sans-serif" font-size="17">oxygen-rich</text>
+</svg>
