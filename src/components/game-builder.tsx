@@ -8,6 +8,12 @@ import { gamePackSchema, type GamePack } from "@/lib/game-pack";
 
 const sample = `The water cycle describes how water moves between Earth's surface and atmosphere. Evaporation occurs when liquid water gains energy and becomes water vapor. Plants also release water vapor through transpiration. As moist air rises and cools, water vapor condenses into tiny droplets that form clouds. When droplets grow heavy enough, water returns to Earth as precipitation such as rain or snow. Water then collects in oceans, lakes, rivers, soil, and groundwater before the cycle repeats. The Sun supplies most of the energy that drives evaporation. Condensation does not mean clouds are made of invisible gas; clouds contain tiny liquid droplets or ice crystals.`;
 
+type GenerationUsage = {
+  inputTokens: number;
+  outputTokens: number;
+  estimatedCostUsd: number;
+};
+
 export function GameBuilder() {
   const router = useRouter();
   const [material, setMaterial] = useState(sample);
@@ -20,6 +26,8 @@ export function GameBuilder() {
   const [sourceDetails, setSourceDetails] = useState("");
   const [extracting, setExtracting] = useState(false);
   const [sourcePdf, setSourcePdf] = useState<File | null>(null);
+  const [generationUsage, setGenerationUsage] =
+    useState<GenerationUsage | null>(null);
 
   async function loadFile(file?: File) {
     if (!file) return;
@@ -60,16 +68,16 @@ export function GameBuilder() {
         if (!response.ok)
           throw new Error(data.error || "PDF extraction failed.");
         const pages = Number(data.pages || 0);
-        if (data.scanOnly && pages > 12) {
+        if (data.scanOnly && pages > 6) {
           throw new Error(
-            "Scanned PDFs are limited to 12 pages. Upload a focused excerpt.",
+            "Scanned PDFs are limited to 6 pages to control API cost. Upload a focused excerpt.",
           );
         }
-        const visualMode = pages <= 12;
+        const visualMode = pages <= 6;
         setSourcePdf(visualMode ? file : null);
         setMaterial(data.text || "");
         setSourceDetails(
-          `${pages} page${pages === 1 ? "" : "s"} · ${data.scanOnly ? "visual scan detected" : `${Number(data.characters || data.text?.length || 0).toLocaleString()} characters`}${visualMode ? " · visual AI mode" : " · text mode (use ≤12 pages for visuals)"}${data.truncated ? " · focused to 12,000" : ""}`,
+          `${pages} page${pages === 1 ? "" : "s"} · ${data.scanOnly ? "visual scan detected" : `${Number(data.characters || data.text?.length || 0).toLocaleString()} characters`}${visualMode ? " · low-cost visual mode" : " · text mode (use ≤6 pages for visuals)"}${data.truncated ? " · focused to 12,000" : ""}`,
         );
       } else {
         const text = (await file.text()).trim();
@@ -118,6 +126,18 @@ export function GameBuilder() {
           <p className="mt-3 text-white/50">
             {pack.subject} · {pack.sourceLabel}
           </p>
+          {generationUsage && (
+            <div className="mt-5 flex flex-wrap gap-2 text-xs font-bold">
+              <span className="rounded-full bg-[#72f0c5]/10 px-3 py-2 text-[#a4f7dc]">
+                Estimated API cost: $
+                {generationUsage.estimatedCostUsd.toFixed(4)}
+              </span>
+              <span className="rounded-full bg-white/[.06] px-3 py-2 text-white/45">
+                {generationUsage.inputTokens.toLocaleString()} in ·{" "}
+                {generationUsage.outputTokens.toLocaleString()} out
+              </span>
+            </div>
+          )}
           <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {pack.rounds.map((round, index) => (
               <article
@@ -169,6 +189,7 @@ export function GameBuilder() {
   async function generate() {
     setLoading(true);
     setError("");
+    setGenerationUsage(null);
     try {
       const response = sourcePdf
         ? await fetch("/api/generate-pdf", {
@@ -187,6 +208,7 @@ export function GameBuilder() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Generation failed.");
       setPack(gamePackSchema.parse(data.pack));
+      if (data.usage) setGenerationUsage(data.usage as GenerationUsage);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Generation failed.");
     } finally {
@@ -329,8 +351,8 @@ export function GameBuilder() {
               </li>
             </ul>
             <div className="mt-5 rounded-xl border border-[#ff6fae]/20 bg-[#ff6fae]/8 p-4 text-xs leading-5 text-[#ffacd0]">
-              PDFs up to 12 pages unlock Visual Map Lab and can be understood
-              even when they are scans.
+              PDFs up to 6 pages unlock visual model building and can be
+              understood even when they are scans.
             </div>
             <div className="mt-6 rounded-xl bg-[#72f0c5]/8 p-4 text-xs leading-5 text-[#a4f7dc]">
               Output is checked against the game schema before it can reach

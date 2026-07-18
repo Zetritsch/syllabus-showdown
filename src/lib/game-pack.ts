@@ -59,6 +59,7 @@ const visualMapRound = baseRound.extend({
   type: z.literal("visual-map"),
   prompt: z.string().min(1),
   sceneLabel: z.string().min(1),
+  canvasKind: z.enum(["body", "cell", "cycle", "system"]),
   labels: z
     .array(
       z.object({

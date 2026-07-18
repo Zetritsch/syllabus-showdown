@@ -67,6 +67,7 @@ export function ShowdownDemo({
   >({});
   const [activeSortItem, setActiveSortItem] = useState<string | null>(null);
   const [hotspotPoint, setHotspotPoint] = useState<HotspotPoint | null>(null);
+  const [introCountdown, setIntroCountdown] = useState(roomCode ? 3 : 0);
   const [roomLive, setRoomLive] = useState(false);
   const [answeredRound, setAnsweredRound] = useState(-1);
   const [livePlayers, setLivePlayers] = useState<LivePlayer[]>([]);
@@ -77,6 +78,15 @@ export function ShowdownDemo({
   useEffect(() => {
     gameStateRef.current = { roundIndex, phase, pack: activePack };
   }, [activePack, phase, roundIndex]);
+
+  useEffect(() => {
+    if (introCountdown <= 0) return;
+    const timer = window.setTimeout(
+      () => setIntroCountdown((value) => Math.max(0, value - 1)),
+      650,
+    );
+    return () => window.clearTimeout(timer);
+  }, [introCountdown]);
 
   useEffect(() => {
     if (!roomCode) return;
@@ -163,6 +173,7 @@ export function ShowdownDemo({
         setSortAssignments({});
         setActiveSortItem(null);
         setHotspotPoint(null);
+        setIntroCountdown(3);
         setPhase("question");
       })
       .on("broadcast", { event: "state-request" }, async ({ payload }) => {
@@ -207,6 +218,7 @@ export function ShowdownDemo({
           setSortAssignments({});
           setActiveSortItem(null);
           setHotspotPoint(null);
+          setIntroCountdown(3);
           setPhase("question");
         }
       })
@@ -348,9 +360,14 @@ export function ShowdownDemo({
 
   function chooseVisualZone(zoneId: string) {
     if (phase !== "question" || !activeVisualLabel) return;
+    assignVisualLabel(activeVisualLabel, zoneId);
+  }
+
+  function assignVisualLabel(labelId: string, zoneId: string) {
+    if (phase !== "question") return;
     setVisualPlacements((current) => ({
       ...current,
-      [zoneId]: activeVisualLabel,
+      [zoneId]: labelId,
     }));
     setActiveVisualLabel(null);
   }
@@ -440,6 +457,7 @@ export function ShowdownDemo({
       setSortAssignments({});
       setActiveSortItem(null);
       setHotspotPoint(null);
+      setIntroCountdown(3);
       setPhase("question");
     }
   }
@@ -457,6 +475,7 @@ export function ShowdownDemo({
     setSortAssignments({});
     setActiveSortItem(null);
     setHotspotPoint(null);
+    setIntroCountdown(0);
     setConfidence(2);
   }
 
@@ -496,7 +515,13 @@ export function ShowdownDemo({
       </header>
 
       {phase === "lobby" ? (
-        <Lobby pack={activePack} start={() => setPhase("question")} />
+        <Lobby
+          pack={activePack}
+          start={() => {
+            setIntroCountdown(3);
+            setPhase("question");
+          }}
+        />
       ) : (
         <div className="relative z-10 mx-auto grid max-w-7xl gap-5 px-4 py-6 lg:grid-cols-[1fr_280px] lg:px-8">
           <section className="rounded-[1.75rem] border border-white/10 bg-[#11152d]/95 p-5 shadow-2xl sm:p-8">
@@ -505,7 +530,9 @@ export function ShowdownDemo({
               index={roundIndex}
               total={activePack.rounds.length}
             />
-            {phase === "remediation" && round.type === "confidence" ? (
+            {introCountdown > 0 && phase === "question" ? (
+              <RoundCountdown round={round} value={introCountdown} />
+            ) : phase === "remediation" && round.type === "confidence" ? (
               <Remediation
                 round={round}
                 selected={selected}
@@ -550,6 +577,7 @@ export function ShowdownDemo({
                 chooseConnectionRight={chooseConnectionRight}
                 chooseVisualLabel={chooseVisualLabel}
                 chooseVisualZone={chooseVisualZone}
+                assignVisualLabel={assignVisualLabel}
                 chooseSortItem={chooseSortItem}
                 chooseSortBucket={chooseSortBucket}
                 assignSortItem={assignSortItem}
@@ -637,6 +665,45 @@ function RoundHeader({
   );
 }
 
+function RoundCountdown({ round, value }: { round: GameRound; value: number }) {
+  const modes: Record<GameRound["type"], string> = {
+    sequence: "Build the correct order",
+    connection: "Connect the concepts",
+    sort: "Charge both reactors",
+    hotspot: "Find it on the source",
+    "visual-map": "Assemble the model",
+    confidence: "Answer and wager",
+  };
+  return (
+    <div className="relative grid min-h-[32rem] place-items-center overflow-hidden rounded-[1.75rem] border border-[#8f78ff]/25 bg-[radial-gradient(circle_at_center,rgba(143,120,255,.28),rgba(8,10,25,.95)_64%)] text-center">
+      <div className="absolute inset-0 arena-grid opacity-40" />
+      <div className="relative z-10 px-6">
+        <p className="text-xs font-black uppercase tracking-[.25em] text-[#72f0c5]">
+          Next challenge
+        </p>
+        <h2 className="mt-3 text-3xl font-black tracking-[-.04em] sm:text-5xl">
+          {round.title}
+        </h2>
+        <p className="mt-3 font-bold text-white/45">{modes[round.type]}</p>
+        <div
+          key={value}
+          className="mx-auto mt-10 grid h-36 w-36 animate-pulse place-items-center rounded-full border-4 border-[#ffd84d] bg-[#ffd84d]/12 text-7xl font-black text-[#ffd84d] shadow-[0_0_70px_rgba(255,216,77,.35)]"
+        >
+          {value}
+        </div>
+        <div className="mx-auto mt-8 flex w-48 gap-2">
+          {[3, 2, 1].map((step) => (
+            <span
+              key={step}
+              className={`h-1.5 flex-1 rounded-full ${value <= step ? "bg-[#ffd84d]" : "bg-white/10"}`}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Question(props: {
   round: GameRound;
   selected: string | null;
@@ -655,6 +722,7 @@ function Question(props: {
   chooseConnectionRight: (id: string) => void;
   chooseVisualLabel: (id: string) => void;
   chooseVisualZone: (id: string) => void;
+  assignVisualLabel: (labelId: string, zoneId: string) => void;
   chooseSortItem: (id: string) => void;
   chooseSortBucket: (id: string) => void;
   assignSortItem: (itemId: string, bucketId: string) => void;
@@ -880,7 +948,10 @@ function Question(props: {
               {round.sceneLabel}
             </span>
           </div>
-          <div className="relative aspect-[4/3] min-h-80 rounded-2xl border border-white/8 bg-[#080a19]/60">
+          <div
+            className={`relative min-h-[28rem] overflow-hidden rounded-2xl border border-white/8 bg-[#080a19]/60 ${round.canvasKind === "body" ? "aspect-[3/4] sm:mx-auto sm:max-w-xl" : "aspect-[4/3]"}`}
+          >
+            <VisualCanvasBackdrop kind={round.canvasKind} />
             <svg
               viewBox="0 0 100 100"
               preserveAspectRatio="none"
@@ -918,7 +989,13 @@ function Question(props: {
                 <button
                   key={zone.id}
                   onClick={() => props.chooseVisualZone(zone.id)}
-                  className={`absolute z-10 w-[42%] -translate-x-1/2 -translate-y-1/2 rounded-2xl border p-3 text-center shadow-xl transition sm:w-[34%] sm:p-4 ${placed ? "border-[#72f0c5]/60 bg-[#102b31]" : props.activeVisualLabel ? "animate-pulse border-[#ffd84d]/70 bg-[#ffd84d]/10" : "border-white/15 bg-[#11152d]"}`}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    const labelId = event.dataTransfer.getData("text/plain");
+                    if (labelId) props.assignVisualLabel(labelId, zone.id);
+                  }}
+                  className={`absolute z-10 -translate-x-1/2 -translate-y-1/2 rounded-2xl border p-2 text-center shadow-xl transition sm:p-3 ${round.canvasKind === "body" ? "w-[25%]" : "w-[42%] sm:w-[34%]"} ${placed ? "border-[#72f0c5]/60 bg-[#102b31]/95" : props.activeVisualLabel ? "animate-pulse border-[#ffd84d]/70 bg-[#ffd84d]/15" : "border-white/20 bg-[#11152d]/85"}`}
                   style={{ left: `${zone.x}%`, top: `${zone.y}%` }}
                 >
                   {placed ? (
@@ -935,7 +1012,7 @@ function Question(props: {
                       <span className="mx-auto grid h-6 w-6 place-items-center rounded-full bg-white/10 text-xs font-black text-white/45">
                         {index + 1}
                       </span>
-                      <span className="mt-1 block text-[10px] leading-4 text-white/35 sm:text-xs">
+                      <span className="mt-1 hidden text-[10px] leading-4 text-white/35 sm:block sm:text-xs">
                         {zone.hint}
                       </span>
                     </>
@@ -953,6 +1030,10 @@ function Question(props: {
             return (
               <button
                 key={label.id}
+                draggable
+                onDragStart={(event) =>
+                  event.dataTransfer.setData("text/plain", label.id)
+                }
                 onClick={() => props.chooseVisualLabel(label.id)}
                 className={`rounded-2xl border p-3 text-left text-sm font-bold transition ${props.activeVisualLabel === label.id ? "border-[#ffd84d] bg-[#ffd84d]/12" : placed ? "border-[#72f0c5]/20 bg-[#72f0c5]/5 text-white/35" : "border-white/10 bg-white/[.05] hover:bg-white/[.09]"}`}
               >
@@ -1099,6 +1180,133 @@ function Submit({ onClick }: { onClick: () => void }) {
     >
       Lock in answer
     </button>
+  );
+}
+
+function VisualCanvasBackdrop({
+  kind,
+}: {
+  kind: "body" | "cell" | "cycle" | "system";
+}) {
+  if (kind === "body")
+    return (
+      <svg
+        viewBox="0 0 300 400"
+        className="pointer-events-none absolute inset-0 h-full w-full opacity-65"
+        aria-hidden="true"
+      >
+        <defs>
+          <linearGradient id="bodyGlow" x1="0" y1="0" x2="0" y2="1">
+            <stop stopColor="#54d9ff" stopOpacity=".35" />
+            <stop offset="1" stopColor="#8f78ff" stopOpacity=".12" />
+          </linearGradient>
+        </defs>
+        <circle
+          cx="150"
+          cy="48"
+          r="30"
+          fill="url(#bodyGlow)"
+          stroke="#78e3ff"
+          strokeWidth="2"
+        />
+        <path
+          d="M112 88 Q150 72 188 88 L205 220 Q185 255 174 275 L177 378 L143 378 L150 270 L123 378 L91 378 L118 260 Q98 235 95 220 Z"
+          fill="url(#bodyGlow)"
+          stroke="#78e3ff"
+          strokeWidth="2"
+        />
+        <path
+          d="M104 105 L45 235 M196 105 L255 235"
+          stroke="#78e3ff"
+          strokeWidth="18"
+          strokeLinecap="round"
+          opacity=".45"
+        />
+        <path
+          d="M150 88 L150 265"
+          stroke="#fff"
+          strokeDasharray="4 8"
+          opacity=".15"
+        />
+      </svg>
+    );
+  if (kind === "cell")
+    return (
+      <svg
+        viewBox="0 0 400 300"
+        className="pointer-events-none absolute inset-0 h-full w-full opacity-60"
+        aria-hidden="true"
+      >
+        <ellipse
+          cx="200"
+          cy="150"
+          rx="174"
+          ry="120"
+          fill="#54d9ff"
+          fillOpacity=".08"
+          stroke="#54d9ff"
+          strokeWidth="4"
+        />
+        <circle
+          cx="205"
+          cy="145"
+          r="48"
+          fill="#8f78ff"
+          fillOpacity=".2"
+          stroke="#a996ff"
+          strokeWidth="3"
+        />
+        <path
+          d="M70 120 Q110 80 145 118 T220 110 M240 210 Q280 170 330 205"
+          fill="none"
+          stroke="#72f0c5"
+          strokeWidth="7"
+          strokeLinecap="round"
+          opacity=".45"
+        />
+      </svg>
+    );
+  if (kind === "cycle")
+    return (
+      <svg
+        viewBox="0 0 400 300"
+        className="pointer-events-none absolute inset-0 h-full w-full opacity-45"
+        aria-hidden="true"
+      >
+        <circle
+          cx="200"
+          cy="150"
+          r="105"
+          fill="none"
+          stroke="#54d9ff"
+          strokeWidth="9"
+          strokeDasharray="35 16"
+        />
+        <circle cx="200" cy="150" r="68" fill="#8f78ff" fillOpacity=".08" />
+      </svg>
+    );
+  return (
+    <svg
+      viewBox="0 0 400 300"
+      className="pointer-events-none absolute inset-0 h-full w-full opacity-35"
+      aria-hidden="true"
+    >
+      <path
+        d="M40 75 H360 M40 150 H360 M40 225 H360 M100 30 V270 M200 30 V270 M300 30 V270"
+        stroke="#54d9ff"
+        strokeWidth="2"
+        strokeDasharray="5 7"
+      />
+      <circle
+        cx="200"
+        cy="150"
+        r="55"
+        fill="#8f78ff"
+        fillOpacity=".18"
+        stroke="#a996ff"
+        strokeWidth="3"
+      />
+    </svg>
   );
 }
 

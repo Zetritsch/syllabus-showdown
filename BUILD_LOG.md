@@ -53,3 +53,6 @@ Codex helped narrow the scope, compare delivery architectures, define the techni
 - Added explicit Next.js output tracing for the native Linux canvas binding used by the Vercel PDF rendering function.
 - Externalized and traced PDF.js after production diagnostics showed its fake worker path being rewritten inside a Turbopack server chunk.
 - Production Hotspot Hunt test passed: an image-only PDF produced all five round types, selected a source-grounded arrow target on page one, returned normalized coordinates and radius, and embedded the original page as a 49 KB JPEG data URL.
+- Switched generation to the cost-sensitive GPT-5.6 Luna tier, set PDF vision detail to low, reduced the visual page cap to six, and added token-based per-generation cost estimates using current model rates.
+- Extended Visual Map Lab with adaptive body, cell, cycle, and system canvas templates so generated play reconstructs a learning model instead of merely reproducing a source page.
+- Added a synchronized three-second challenge reveal between rounds so host-led multiplayer feels like a live game show instead of a sequence of forms.
