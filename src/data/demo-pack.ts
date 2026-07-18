@@ -33,30 +33,58 @@ export const demoPack = validateGamePack({
     },
     {
       id: "vessel-walls",
-      type: "connection",
-      title: "Connection Clash",
-      concept: "Structure and function",
+      type: "visual-map",
+      title: "Visual Map Lab",
+      concept: "Rebuild double circulation",
       points: 800,
       evidence:
-        "Arteries receive blood under higher pressure and have thicker, more muscular walls than veins.",
-      prompt: "Build the vessel map. Connect every structure to its function.",
-      leftItems: [
-        { id: "artery-wall", label: "Artery · thick muscular wall" },
-        { id: "capillary-wall", label: "Capillary · one-cell-thick wall" },
-        { id: "vein-valves", label: "Vein · one-way valves" },
+        "The right heart sends oxygen-poor blood to the lungs; the left heart then sends oxygen-rich blood to the body.",
+      prompt: "Rebuild the circulation map by placing all four stations.",
+      sceneLabel: "Heart · lungs · body",
+      labels: [
+        { id: "right-heart", label: "Right heart", glyph: "💙" },
+        { id: "lungs", label: "Lungs", glyph: "🫁" },
+        { id: "left-heart", label: "Left heart", glyph: "❤️" },
+        { id: "body", label: "Body tissues", glyph: "⚡" },
       ],
-      rightItems: [
-        { id: "stop-backflow", label: "Prevents backflow" },
-        { id: "withstand-pressure", label: "Withstands high pressure" },
-        { id: "rapid-diffusion", label: "Allows rapid diffusion" },
+      zones: [
+        {
+          id: "zone-right-heart",
+          x: 23,
+          y: 25,
+          answerId: "right-heart",
+          hint: "Receives oxygen-poor blood",
+        },
+        {
+          id: "zone-lungs",
+          x: 77,
+          y: 25,
+          answerId: "lungs",
+          hint: "Gas exchange happens here",
+        },
+        {
+          id: "zone-left-heart",
+          x: 77,
+          y: 75,
+          answerId: "left-heart",
+          hint: "Pumps oxygen-rich blood",
+        },
+        {
+          id: "zone-body",
+          x: 23,
+          y: 75,
+          answerId: "body",
+          hint: "Uses delivered oxygen",
+        },
       ],
-      correctPairs: [
-        { leftId: "artery-wall", rightId: "withstand-pressure" },
-        { leftId: "capillary-wall", rightId: "rapid-diffusion" },
-        { leftId: "vein-valves", rightId: "stop-backflow" },
+      links: [
+        { fromZoneId: "zone-right-heart", toZoneId: "zone-lungs" },
+        { fromZoneId: "zone-lungs", toZoneId: "zone-left-heart" },
+        { fromZoneId: "zone-left-heart", toZoneId: "zone-body" },
+        { fromZoneId: "zone-body", toZoneId: "zone-right-heart" },
       ],
       explanation:
-        "Arteries resist pressure, thin capillaries enable exchange, and vein valves stop low-pressure blood from flowing backward.",
+        "Double circulation forms a loop: right heart → lungs → left heart → body → right heart.",
     },
     {
       id: "artery-confidence",

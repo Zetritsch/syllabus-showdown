@@ -55,6 +55,42 @@ const confidenceRound = baseRound.extend({
   explanation: z.string().min(1),
 });
 
+const visualMapRound = baseRound.extend({
+  type: z.literal("visual-map"),
+  prompt: z.string().min(1),
+  sceneLabel: z.string().min(1),
+  labels: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        label: z.string().min(1),
+        glyph: z.string().min(1).max(4),
+      }),
+    )
+    .length(4),
+  zones: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        x: z.number().int().min(12).max(88),
+        y: z.number().int().min(15).max(85),
+        answerId: z.string().min(1),
+        hint: z.string().min(1),
+      }),
+    )
+    .length(4),
+  links: z
+    .array(
+      z.object({
+        fromZoneId: z.string().min(1),
+        toZoneId: z.string().min(1),
+      }),
+    )
+    .min(3)
+    .max(5),
+  explanation: z.string().min(1),
+});
+
 export const gamePackSchema = z.object({
   version: z.literal("1.0"),
   title: z.string().min(1),
@@ -67,6 +103,7 @@ export const gamePackSchema = z.object({
         sequenceRound,
         connectionRound,
         confidenceRound,
+        visualMapRound,
       ]),
     )
     .min(3),
@@ -99,6 +136,20 @@ export function validateGamePack(input: unknown): GamePack {
         usedRight.size !== round.rightItems.length
       ) {
         throw new Error(`Invalid connection map in round ${round.id}`);
+      }
+    } else if (round.type === "visual-map") {
+      const labelIds = new Set(round.labels.map((label) => label.id));
+      const zoneIds = new Set(round.zones.map((zone) => zone.id));
+      const answerIds = new Set(round.zones.map((zone) => zone.answerId));
+      if (
+        answerIds.size !== round.labels.length ||
+        round.zones.some((zone) => !labelIds.has(zone.answerId)) ||
+        round.links.some(
+          (link) =>
+            !zoneIds.has(link.fromZoneId) || !zoneIds.has(link.toZoneId),
+        )
+      ) {
+        throw new Error(`Invalid visual map in round ${round.id}`);
       }
     } else if (
       !round.options.some((option) => option.id === round.correctOptionId)

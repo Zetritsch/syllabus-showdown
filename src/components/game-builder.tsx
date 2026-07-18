@@ -19,6 +19,7 @@ export function GameBuilder() {
   const [sourceFileName, setSourceFileName] = useState("");
   const [sourceDetails, setSourceDetails] = useState("");
   const [extracting, setExtracting] = useState(false);
+  const [sourcePdf, setSourcePdf] = useState<File | null>(null);
 
   async function loadFile(file?: File) {
     if (!file) return;
@@ -53,13 +54,22 @@ export function GameBuilder() {
           pages?: number;
           characters?: number;
           truncated?: boolean;
+          scanOnly?: boolean;
           error?: string;
         };
-        if (!response.ok || !data.text)
+        if (!response.ok)
           throw new Error(data.error || "PDF extraction failed.");
-        setMaterial(data.text);
+        const pages = Number(data.pages || 0);
+        if (data.scanOnly && pages > 12) {
+          throw new Error(
+            "Scanned PDFs are limited to 12 pages. Upload a focused excerpt.",
+          );
+        }
+        const visualMode = pages <= 12;
+        setSourcePdf(visualMode ? file : null);
+        setMaterial(data.text || "");
         setSourceDetails(
-          `${data.pages} page${data.pages === 1 ? "" : "s"} · ${Number(data.characters || data.text.length).toLocaleString()} characters${data.truncated ? " · focused to 12,000" : ""}`,
+          `${pages} page${pages === 1 ? "" : "s"} · ${data.scanOnly ? "visual scan detected" : `${Number(data.characters || data.text?.length || 0).toLocaleString()} characters`}${visualMode ? " · visual AI mode" : " · text mode (use ≤12 pages for visuals)"}${data.truncated ? " · focused to 12,000" : ""}`,
         );
       } else {
         const text = (await file.text()).trim();
@@ -68,6 +78,7 @@ export function GameBuilder() {
             "The file needs at least 200 characters of learning material.",
           );
         setMaterial(text.slice(0, 12_000));
+        setSourcePdf(null);
         setSourceDetails(
           `${text.length.toLocaleString()} characters${text.length > 12_000 ? " · focused to 12,000" : ""}`,
         );
@@ -159,11 +170,20 @@ export function GameBuilder() {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ material }),
-      });
+      const response = sourcePdf
+        ? await fetch("/api/generate-pdf", {
+            method: "POST",
+            body: (() => {
+              const formData = new FormData();
+              formData.set("file", sourcePdf);
+              return formData;
+            })(),
+          })
+        : await fetch("/api/generate", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ material }),
+          });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Generation failed.");
       setPack(gamePackSchema.parse(data.pack));
@@ -233,13 +253,25 @@ export function GameBuilder() {
             )}
             <textarea
               value={material}
-              onChange={(e) => setMaterial(e.target.value)}
+              onChange={(e) => {
+                setMaterial(e.target.value);
+                if (sourcePdf) setSourcePdf(null);
+              }}
               maxLength={12000}
+              placeholder={
+                sourcePdf
+                  ? "This PDF has little or no selectable text. Visual AI will read the rendered pages directly."
+                  : "Paste focused learning material here…"
+              }
               className="mt-4 min-h-72 w-full resize-y rounded-2xl border border-white/12 bg-white/[.055] p-5 leading-7 outline-none transition focus:border-[#8f78ff]"
               aria-label="Study material"
             />
             <div className="mt-2 flex justify-between text-xs text-white/35">
-              <span>Minimum 200 characters</span>
+              <span>
+                {sourcePdf
+                  ? "Visual PDF mode · scans and diagrams supported"
+                  : "Minimum 200 characters"}
+              </span>
               <span>{material.length.toLocaleString()} / 12,000</span>
             </div>
             {error && (
@@ -249,13 +281,25 @@ export function GameBuilder() {
             )}
             <button
               onClick={generate}
-              disabled={loading || extracting || material.trim().length < 200}
+              disabled={
+                loading ||
+                extracting ||
+                (!sourcePdf && material.trim().length < 200)
+              }
               className="mt-5 w-full rounded-2xl bg-[#ffd84d] px-7 py-4 font-black text-[#101329] disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {loading ? "Designing your rounds…" : "Generate showdown ✦"}
+              {loading
+                ? sourcePdf
+                  ? "Reading pages and building visuals…"
+                  : "Designing your rounds…"
+                : sourcePdf
+                  ? "Generate visual showdown ✦"
+                  : "Generate showdown ✦"}
             </button>
             <p className="mt-3 text-center text-xs text-white/30">
-              One generation uses a small amount of your OpenAI API credit.
+              {sourcePdf
+                ? "Visual PDF analysis uses more input tokens than text-only generation."
+                : "One generation uses a small amount of your OpenAI API credit."}
             </p>
           </section>
           <aside className="h-fit rounded-2xl border border-white/10 bg-white/[.05] p-5">
@@ -268,14 +312,18 @@ export function GameBuilder() {
                 process correctly
               </li>
               <li>
-                <b className="block text-white">2 · Connection Clash</b>Link
-                structure and meaning
+                <b className="block text-white">2 · Visual Map Lab</b>Rebuild a
+                system from diagrams
               </li>
               <li>
                 <b className="block text-white">3 · Confidence Battle</b>Expose
                 misconceptions
               </li>
             </ul>
+            <div className="mt-5 rounded-xl border border-[#ff6fae]/20 bg-[#ff6fae]/8 p-4 text-xs leading-5 text-[#ffacd0]">
+              PDFs up to 12 pages unlock Visual Map Lab and can be understood
+              even when they are scans.
+            </div>
             <div className="mt-6 rounded-xl bg-[#72f0c5]/8 p-4 text-xs leading-5 text-[#a4f7dc]">
               Output is checked against the game schema before it can reach
               players.

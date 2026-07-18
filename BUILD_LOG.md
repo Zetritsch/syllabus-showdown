@@ -36,6 +36,8 @@ Codex helped narrow the scope, compare delivery architectures, define the techni
 - Added drag-and-drop and file selection for plain-text and Markdown study material with size, type, and length guardrails.
 - Added server-side PDF text extraction with page/file limits, encrypted and image-only PDF errors, source metadata, and automatic focusing to the validated 12,000-character generation limit.
 - Rebuilt Connection Clash as a three-link concept network with a validated one-to-one answer map, replacing its conventional single-answer multiple-choice interaction.
+- Added a multimodal PDF generation path that sends both PDF text and rendered page images to GPT-5.6, enabling scanned-page and diagram understanding with a strict 12-page cost guardrail.
+- Added the Visual Map Lab schema foundation for reconstructing a source-grounded system or process as a spatial four-zone learning game.
 
 ## Verification
 

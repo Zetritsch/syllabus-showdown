@@ -55,6 +55,12 @@ export function ShowdownDemo({
   const [activeConnectionLeft, setActiveConnectionLeft] = useState<
     string | null
   >(null);
+  const [visualPlacements, setVisualPlacements] = useState<
+    Record<string, string>
+  >({});
+  const [activeVisualLabel, setActiveVisualLabel] = useState<string | null>(
+    null,
+  );
   const [roomLive, setRoomLive] = useState(false);
   const [answeredRound, setAnsweredRound] = useState(-1);
   const [livePlayers, setLivePlayers] = useState<LivePlayer[]>([]);
@@ -146,6 +152,8 @@ export function ShowdownDemo({
         setSequence([]);
         setConnections([]);
         setActiveConnectionLeft(null);
+        setVisualPlacements({});
+        setActiveVisualLabel(null);
         setPhase("question");
       })
       .on("broadcast", { event: "state-request" }, async ({ payload }) => {
@@ -185,6 +193,8 @@ export function ShowdownDemo({
           setSequence([]);
           setConnections([]);
           setActiveConnectionLeft(null);
+          setVisualPlacements({});
+          setActiveVisualLabel(null);
           setPhase("question");
         }
       })
@@ -260,8 +270,12 @@ export function ShowdownDemo({
         )
       );
     }
+    if (round.type === "visual-map")
+      return round.zones.every(
+        (zone) => visualPlacements[zone.id] === zone.answerId,
+      );
     return selected === round.correctOptionId;
-  }, [connections, round, selected, sequence]);
+  }, [connections, round, selected, sequence, visualPlacements]);
 
   function chooseSequence(id: string) {
     if (phase !== "question") return;
@@ -289,13 +303,34 @@ export function ShowdownDemo({
     setActiveConnectionLeft(null);
   }
 
+  function chooseVisualLabel(id: string) {
+    if (phase !== "question") return;
+    setVisualPlacements((current) =>
+      Object.fromEntries(
+        Object.entries(current).filter(([, labelId]) => labelId !== id),
+      ),
+    );
+    setActiveVisualLabel(id);
+  }
+
+  function chooseVisualZone(zoneId: string) {
+    if (phase !== "question" || !activeVisualLabel) return;
+    setVisualPlacements((current) => ({
+      ...current,
+      [zoneId]: activeVisualLabel,
+    }));
+    setActiveVisualLabel(null);
+  }
+
   function submit() {
     const answered =
       round.type === "sequence"
         ? sequence.length === round.items.length
         : round.type === "connection"
           ? connections.length === round.leftItems.length
-          : selected !== null;
+          : round.type === "visual-map"
+            ? Object.keys(visualPlacements).length === round.zones.length
+            : selected !== null;
     if (!answered) return;
     if (correct)
       setScore(
@@ -344,6 +379,8 @@ export function ShowdownDemo({
       setSequence([]);
       setConnections([]);
       setActiveConnectionLeft(null);
+      setVisualPlacements({});
+      setActiveVisualLabel(null);
       setPhase("question");
     }
   }
@@ -356,6 +393,8 @@ export function ShowdownDemo({
     setSequence([]);
     setConnections([]);
     setActiveConnectionLeft(null);
+    setVisualPlacements({});
+    setActiveVisualLabel(null);
     setConfidence(2);
   }
 
@@ -437,11 +476,15 @@ export function ShowdownDemo({
                 sequence={sequence}
                 connections={connections}
                 activeConnectionLeft={activeConnectionLeft}
+                visualPlacements={visualPlacements}
+                activeVisualLabel={activeVisualLabel}
                 confidence={confidence}
                 choose={setSelected}
                 chooseSequence={chooseSequence}
                 chooseConnectionLeft={chooseConnectionLeft}
                 chooseConnectionRight={chooseConnectionRight}
+                chooseVisualLabel={chooseVisualLabel}
+                chooseVisualZone={chooseVisualZone}
                 setConfidence={setConfidence}
                 submit={submit}
               />
@@ -531,11 +574,15 @@ function Question(props: {
   sequence: string[];
   connections: ConnectionPair[];
   activeConnectionLeft: string | null;
+  visualPlacements: Record<string, string>;
+  activeVisualLabel: string | null;
   confidence: number;
   choose: (id: string) => void;
   chooseSequence: (id: string) => void;
   chooseConnectionLeft: (id: string) => void;
   chooseConnectionRight: (id: string) => void;
+  chooseVisualLabel: (id: string) => void;
+  chooseVisualZone: (id: string) => void;
   setConfidence: (n: number) => void;
   submit: () => void;
 }) {
@@ -565,6 +612,109 @@ function Question(props: {
           })}
         </div>
         <Submit onClick={props.submit} />{" "}
+      </>
+    );
+  if (round.type === "visual-map")
+    return (
+      <>
+        <h2 className="text-xl font-bold leading-8 sm:text-2xl">
+          {round.prompt}
+        </h2>
+        <p className="mt-2 text-sm text-white/40">
+          Select a label, then place it into the correct zone.
+        </p>
+        <div className="mt-6 overflow-hidden rounded-[1.75rem] border border-[#54d9ff]/20 bg-[radial-gradient(circle_at_center,rgba(84,217,255,.12),rgba(17,21,45,.9)_62%)] p-3 sm:p-5">
+          <div className="flex items-center justify-between px-1 pb-3">
+            <span className="text-xs font-black uppercase tracking-[.16em] text-[#9feaff]">
+              Visual Map Lab
+            </span>
+            <span className="text-xs font-bold text-white/35">
+              {round.sceneLabel}
+            </span>
+          </div>
+          <div className="relative aspect-[4/3] min-h-80 rounded-2xl border border-white/8 bg-[#080a19]/60">
+            <svg
+              viewBox="0 0 100 100"
+              preserveAspectRatio="none"
+              className="pointer-events-none absolute inset-0 h-full w-full"
+              aria-hidden="true"
+            >
+              {round.links.map((link, index) => {
+                const from = round.zones.find(
+                  (zone) => zone.id === link.fromZoneId,
+                );
+                const to = round.zones.find(
+                  (zone) => zone.id === link.toZoneId,
+                );
+                if (!from || !to) return null;
+                return (
+                  <line
+                    key={`${link.fromZoneId}-${link.toZoneId}-${index}`}
+                    x1={from.x}
+                    y1={from.y}
+                    x2={to.x}
+                    y2={to.y}
+                    stroke="rgba(84,217,255,.45)"
+                    strokeWidth="1.2"
+                    strokeDasharray="3 2"
+                  />
+                );
+              })}
+            </svg>
+            {round.zones.map((zone, index) => {
+              const placedId = props.visualPlacements[zone.id];
+              const placed = round.labels.find(
+                (label) => label.id === placedId,
+              );
+              return (
+                <button
+                  key={zone.id}
+                  onClick={() => props.chooseVisualZone(zone.id)}
+                  className={`absolute z-10 w-[42%] -translate-x-1/2 -translate-y-1/2 rounded-2xl border p-3 text-center shadow-xl transition sm:w-[34%] sm:p-4 ${placed ? "border-[#72f0c5]/60 bg-[#102b31]" : props.activeVisualLabel ? "animate-pulse border-[#ffd84d]/70 bg-[#ffd84d]/10" : "border-white/15 bg-[#11152d]"}`}
+                  style={{ left: `${zone.x}%`, top: `${zone.y}%` }}
+                >
+                  {placed ? (
+                    <>
+                      <span className="block text-xl sm:text-2xl">
+                        {placed.glyph}
+                      </span>
+                      <b className="mt-1 block text-xs leading-4 sm:text-sm">
+                        {placed.label}
+                      </b>
+                    </>
+                  ) : (
+                    <>
+                      <span className="mx-auto grid h-6 w-6 place-items-center rounded-full bg-white/10 text-xs font-black text-white/45">
+                        {index + 1}
+                      </span>
+                      <span className="mt-1 block text-[10px] leading-4 text-white/35 sm:text-xs">
+                        {zone.hint}
+                      </span>
+                    </>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {round.labels.map((label) => {
+            const placed = Object.values(props.visualPlacements).includes(
+              label.id,
+            );
+            return (
+              <button
+                key={label.id}
+                onClick={() => props.chooseVisualLabel(label.id)}
+                className={`rounded-2xl border p-3 text-left text-sm font-bold transition ${props.activeVisualLabel === label.id ? "border-[#ffd84d] bg-[#ffd84d]/12" : placed ? "border-[#72f0c5]/20 bg-[#72f0c5]/5 text-white/35" : "border-white/10 bg-white/[.05] hover:bg-white/[.09]"}`}
+              >
+                <span className="mr-2">{label.glyph}</span>
+                {label.label}
+              </button>
+            );
+          })}
+        </div>
+        <Submit onClick={props.submit} />
       </>
     );
   if (round.type === "connection") {

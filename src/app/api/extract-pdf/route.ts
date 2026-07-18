@@ -55,13 +55,13 @@ export async function POST(request: Request) {
     const extracted = await extractText(pdf, { mergePages: true });
     const text = cleanPdfText(extracted.text);
     if (text.length < 200) {
-      return Response.json(
-        {
-          error:
-            "We could not find enough selectable text. Scanned PDFs need OCR and are not supported yet.",
-        },
-        { status: 422 },
-      );
+      return Response.json({
+        text: "",
+        pages: extracted.totalPages,
+        characters: text.length,
+        truncated: false,
+        scanOnly: true,
+      });
     }
 
     return Response.json({
