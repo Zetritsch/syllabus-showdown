@@ -12,23 +12,44 @@
   --font-mono: var(--font-geist-mono);
 }
 
-* { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
-body { margin: 0; background: var(--background); color: var(--foreground); }
-button, a { -webkit-tap-highlight-color: transparent; }
-button { cursor: pointer; }
+* {
+  box-sizing: border-box;
+}
+html {
+  scroll-behavior: smooth;
+}
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+}
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+button {
+  cursor: pointer;
+}
 
 .arena-grid {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  opacity: .28;
+  opacity: 0.28;
   background-image:
-    linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px),
-    radial-gradient(circle at 70% 32%, rgba(111,75,255,.42), transparent 28%),
-    radial-gradient(circle at 18% 5%, rgba(25,190,255,.18), transparent 24%);
-  background-size: 44px 44px, 44px 44px, auto, auto;
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    radial-gradient(
+      circle at 70% 32%,
+      rgba(111, 75, 255, 0.42),
+      transparent 28%
+    ),
+    radial-gradient(circle at 18% 5%, rgba(25, 190, 255, 0.18), transparent 24%);
+  background-size:
+    44px 44px,
+    44px 44px,
+    auto,
+    auto;
   mask-image: linear-gradient(to bottom, black, transparent 92%);
 }
 
@@ -39,4 +60,94 @@ button { cursor: pointer; }
   -webkit-background-clip: text;
 }
 
-::selection { background: #ffd84d; color: #101329; }
+::selection {
+  background: #ffd84d;
+  color: #101329;
+}
+
+@keyframes stage-enter {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.985);
+    filter: blur(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes score-pop {
+  0% {
+    transform: scale(0.7) rotate(-4deg);
+    opacity: 0;
+  }
+  65% {
+    transform: scale(1.1) rotate(1deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(0);
+    opacity: 1;
+  }
+}
+
+@keyframes confetti-fall {
+  0% {
+    transform: translate3d(0, -40px, 0) rotate(0);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(var(--drift, 20px), 420px, 0) rotate(720deg);
+    opacity: 0;
+  }
+}
+
+@keyframes soft-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-7px);
+  }
+  50% {
+    transform: translateX(6px);
+  }
+  75% {
+    transform: translateX(-3px);
+  }
+}
+
+.stage-enter {
+  animation: stage-enter 0.48s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.score-pop {
+  animation: score-pop 0.55s cubic-bezier(0.2, 0.9, 0.2, 1.2) both;
+}
+.result-shake {
+  animation: soft-shake 0.36s ease-out both;
+}
+.confetti-piece {
+  position: absolute;
+  top: -20px;
+  width: 9px;
+  height: 18px;
+  border-radius: 3px;
+  animation: confetti-fall 2.2s ease-in infinite;
+  animation-delay: var(--delay, 0s);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage-enter,
+  .score-pop,
+  .result-shake,
+  .confetti-piece {
+    animation: none !important;
+  }
+}

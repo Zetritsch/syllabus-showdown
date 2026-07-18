@@ -58,3 +58,6 @@ Codex helped narrow the scope, compare delivery architectures, define the techni
 - Added a synchronized three-second challenge reveal between rounds so host-led multiplayer feels like a live game show instead of a sequence of forms.
 - Added persistent German/English language selection across the landing page, studio, lobby, and game flow; generated packs now explicitly follow the selected output language.
 - Added a locally generated QR invite to every multiplayer lobby so players can join from their phones without typing the room code.
+- Gave every round type its own color, icon, glow, progress treatment, and animated stage entrance instead of reusing one generic quiz surface.
+- Added synthesized game-show sound cues with a persistent mute control, animated correct/incorrect feedback, confetti, and a true three-place final podium.
+- Added a submission-focused roadmap covering production QA, judge assets, video, gallery, story, and final disclosure work.

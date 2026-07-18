@@ -12,6 +12,49 @@ import { getSupabaseBrowserClient } from "@/lib/supabase";
 type Phase = "lobby" | "question" | "result" | "remediation" | "podium";
 type ConnectionPair = { leftId: string; rightId: string };
 type HotspotPoint = { x: number; y: number };
+type SoundKind = "start" | "correct" | "wrong" | "transition";
+
+const roundThemes: Record<
+  GameRound["type"],
+  { icon: string; accent: string; glow: string; label: string }
+> = {
+  sequence: {
+    icon: "↕",
+    accent: "#ffd84d",
+    glow: "rgba(255,216,77,.17)",
+    label: "Sequence Rush",
+  },
+  connection: {
+    icon: "⌁",
+    accent: "#ff6fae",
+    glow: "rgba(255,111,174,.16)",
+    label: "Connection Clash",
+  },
+  sort: {
+    icon: "◆",
+    accent: "#54d9ff",
+    glow: "rgba(84,217,255,.17)",
+    label: "Sort Reactor",
+  },
+  hotspot: {
+    icon: "⌖",
+    accent: "#ff9f43",
+    glow: "rgba(255,159,67,.17)",
+    label: "Hotspot Hunt",
+  },
+  "visual-map": {
+    icon: "✦",
+    accent: "#72f0c5",
+    glow: "rgba(114,240,197,.16)",
+    label: "Model Assembly",
+  },
+  confidence: {
+    icon: "⚡",
+    accent: "#a78bfa",
+    glow: "rgba(167,139,250,.18)",
+    label: "Confidence Battle",
+  },
+};
 const demoPlayers = [
   { name: "Maya", score: 2240, color: "#ff6fae" },
   { name: "You", score: 1980, color: "#ffd84d" },
@@ -75,9 +118,52 @@ export function ShowdownDemo({
   const [roomLive, setRoomLive] = useState(false);
   const [answeredRound, setAnsweredRound] = useState(-1);
   const [livePlayers, setLivePlayers] = useState<LivePlayer[]>([]);
+  const [soundEnabled, setSoundEnabled] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return localStorage.getItem("showdown:sound") !== "off";
+  });
   const channelRef = useRef<RealtimeChannel | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
   const gameStateRef = useRef({ roundIndex, phase, pack: activePack });
   const round = activePack.rounds[roundIndex];
+  const theme = roundThemes[round.type];
+
+  function playSound(kind: SoundKind) {
+    if (!soundEnabled || typeof window === "undefined") return;
+    const AudioContextClass =
+      window.AudioContext ||
+      (window as typeof window & { webkitAudioContext?: typeof AudioContext })
+        .webkitAudioContext;
+    if (!AudioContextClass) return;
+    const context = audioContextRef.current ?? new AudioContextClass();
+    audioContextRef.current = context;
+    const now = context.currentTime;
+    const notes: Record<SoundKind, number[]> = {
+      start: [330, 494, 659],
+      correct: [523, 659, 784],
+      wrong: [220, 185],
+      transition: [392, 523],
+    };
+    notes[kind].forEach((frequency, index) => {
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.type = kind === "wrong" ? "sawtooth" : "sine";
+      oscillator.frequency.value = frequency;
+      const start = now + index * 0.075;
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(0.08, start + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.16);
+      oscillator.connect(gain).connect(context.destination);
+      oscillator.start(start);
+      oscillator.stop(start + 0.18);
+    });
+  }
+
+  function toggleSound() {
+    const next = !soundEnabled;
+    setSoundEnabled(next);
+    localStorage.setItem("showdown:sound", next ? "on" : "off");
+  }
 
   useEffect(() => {
     if (!pack && !roomCode) queueMicrotask(() => setActivePack(defaultPack));
@@ -413,6 +499,7 @@ export function ShowdownDemo({
                 ? hotspotPoint !== null
                 : selected !== null;
     if (!answered) return;
+    playSound(correct ? "correct" : "wrong");
     if (correct)
       setScore(
         (value) =>
@@ -427,6 +514,7 @@ export function ShowdownDemo({
 
   async function advance() {
     if (roomCode && !isHost) return;
+    playSound("transition");
     if (
       !roomCode &&
       round.type === "confidence" &&
@@ -508,6 +596,23 @@ export function ShowdownDemo({
           <span className="hidden sm:inline">SYLLABUS SHOWDOWN</span>
         </Link>
         <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={toggleSound}
+            className="grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-white/[.05] text-sm transition hover:bg-white/10"
+            aria-label={
+              soundEnabled
+                ? language === "de"
+                  ? "Sound ausschalten"
+                  : "Mute sound"
+                : language === "de"
+                  ? "Sound einschalten"
+                  : "Enable sound"
+            }
+            title={soundEnabled ? "Sound on" : "Sound off"}
+          >
+            {soundEnabled ? "🔊" : "🔇"}
+          </button>
           <LanguageSwitcher compact />
           <span
             className={`rounded-full px-3 py-1.5 text-xs font-bold ${roomCode ? "bg-[#54d9ff]/10 text-[#9feaff]" : "bg-[#72f0c5]/10 text-[#72f0c5]"}`}
@@ -529,13 +634,28 @@ export function ShowdownDemo({
         <Lobby
           pack={activePack}
           start={() => {
+            playSound("start");
             setIntroCountdown(3);
             setPhase("question");
           }}
         />
       ) : (
         <div className="relative z-10 mx-auto grid max-w-7xl gap-5 px-4 py-6 lg:grid-cols-[1fr_280px] lg:px-8">
-          <section className="rounded-[1.75rem] border border-white/10 bg-[#11152d]/95 p-5 shadow-2xl sm:p-8">
+          <section
+            key={round.id}
+            className="stage-enter relative overflow-hidden rounded-[1.75rem] border border-white/10 bg-[#11152d]/95 p-5 shadow-2xl sm:p-8"
+            style={{
+              boxShadow: `0 28px 90px ${theme.glow}, 0 24px 60px rgba(0,0,0,.32)`,
+            }}
+          >
+            <div
+              className="pointer-events-none absolute inset-x-0 top-0 h-1"
+              style={{ background: theme.accent }}
+            />
+            <div
+              className="pointer-events-none absolute -right-32 -top-32 h-80 w-80 rounded-full blur-3xl"
+              style={{ background: theme.glow }}
+            />
             <RoundHeader
               round={round}
               index={roundIndex}
@@ -668,19 +788,59 @@ function RoundHeader({
   total: number;
 }) {
   const { language } = useLanguage();
+  const theme = roundThemes[round.type];
   return (
-    <div className="mb-8 flex items-start justify-between gap-4">
-      <div>
-        <p className="text-xs font-black uppercase tracking-[.2em] text-[#8f78ff]">
-          {language === "de" ? "Runde" : "Round"} {index + 1}{" "}
-          {language === "de" ? "von" : "of"} {total}
-        </p>
-        <h1 className="mt-1 text-2xl font-black sm:text-3xl">{round.title}</h1>
-        <p className="mt-1 text-sm text-white/40">{round.concept}</p>
+    <div className="relative z-10 mb-8">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <span
+            className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border text-2xl font-black shadow-lg"
+            style={{
+              color: theme.accent,
+              borderColor: `${theme.accent}55`,
+              background: `${theme.accent}16`,
+            }}
+          >
+            {theme.icon}
+          </span>
+          <div className="min-w-0">
+            <p
+              className="text-xs font-black uppercase tracking-[.18em]"
+              style={{ color: theme.accent }}
+            >
+              {theme.label} · {language === "de" ? "Runde" : "Round"}{" "}
+              {index + 1}
+            </p>
+            <h1 className="mt-1 truncate text-2xl font-black sm:text-3xl">
+              {round.title}
+            </h1>
+            <p className="mt-1 text-sm text-white/40">{round.concept}</p>
+          </div>
+        </div>
+        <span
+          className="shrink-0 rounded-xl border px-3 py-2 text-sm font-black"
+          style={{
+            color: theme.accent,
+            borderColor: `${theme.accent}33`,
+            background: `${theme.accent}0f`,
+          }}
+        >
+          +{round.points}
+        </span>
       </div>
-      <span className="rounded-xl bg-white/[.06] px-3 py-2 text-sm font-black text-[#ffd84d]">
-        +{round.points}
-      </span>
+      <div className="mt-5 flex gap-1.5" aria-label={`${index + 1} / ${total}`}>
+        {Array.from({ length: total }, (_, step) => (
+          <span
+            key={step}
+            className="h-1.5 flex-1 rounded-full transition"
+            style={{
+              background:
+                step <= index ? theme.accent : "rgba(255,255,255,.08)",
+              opacity: step < index ? 0.45 : 1,
+            }}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -1389,89 +1549,133 @@ function Result({
 }) {
   const { language } = useLanguage();
   const adaptive = round.type === "confidence" && !correct && confidence === 3;
+  const awarded = Math.round(
+    round.points * (round.type === "confidence" ? confidence / 3 : 0.7),
+  );
+  const confettiColors = [
+    "#ffd84d",
+    "#72f0c5",
+    "#54d9ff",
+    "#ff6fae",
+    "#a78bfa",
+  ];
   return (
-    <div className="py-4">
-      <div
-        className={`inline-flex rounded-full px-4 py-2 text-sm font-black ${correct ? "bg-[#72f0c5]/12 text-[#72f0c5]" : "bg-[#ff6fae]/12 text-[#ff8fbd]"}`}
-      >
-        {correct
-          ? language === "de"
-            ? "✓ Richtig!"
-            : "✓ Correct!"
-          : language === "de"
-            ? "Noch nicht ganz"
-            : "Not quite"}
-      </div>
-      <h2 className="mt-5 text-3xl font-black">
-        {correct
-          ? `+${Math.round(round.points * (round.type === "confidence" ? confidence / 3 : 0.7))} ${language === "de" ? "Punkte" : "points"}`
-          : adaptive
+    <div
+      className={`relative overflow-hidden rounded-[1.5rem] px-1 py-5 ${correct ? "" : "result-shake"}`}
+    >
+      {correct && (
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 h-96 overflow-hidden"
+          aria-hidden="true"
+        >
+          {Array.from({ length: 20 }, (_, index) => (
+            <span
+              key={index}
+              className="confetti-piece"
+              style={
+                {
+                  left: `${4 + ((index * 29) % 92)}%`,
+                  background: confettiColors[index % confettiColors.length],
+                  "--delay": `${(index % 7) * -0.23}s`,
+                  "--drift": `${(index % 2 ? 1 : -1) * (18 + (index % 4) * 9)}px`,
+                } as React.CSSProperties
+              }
+            />
+          ))}
+        </div>
+      )}
+      <div className="relative z-10">
+        <div
+          className={`grid h-20 w-20 place-items-center rounded-[1.5rem] border text-4xl shadow-2xl ${correct ? "score-pop border-[#72f0c5]/45 bg-[#72f0c5]/12 shadow-[#72f0c5]/15" : "border-[#ff6fae]/35 bg-[#ff6fae]/10 shadow-[#ff6fae]/10"}`}
+        >
+          {correct ? "✓" : "↻"}
+        </div>
+        <div
+          className={`mt-5 inline-flex rounded-full px-4 py-2 text-sm font-black ${correct ? "bg-[#72f0c5]/12 text-[#72f0c5]" : "bg-[#ff6fae]/12 text-[#ff8fbd]"}`}
+        >
+          {correct
             ? language === "de"
-              ? "Hohe Sicherheit erkannt."
-              : "Confidence detected."
+              ? "RICHTIG GELÖST"
+              : "CHALLENGE CLEARED"
             : language === "de"
-              ? "Lerne daraus und hol dir die nächste Runde."
-              : "Learn it, then steal the next one."}
-      </h2>
-      <p className="mt-4 max-w-2xl text-lg leading-8 text-white/62">
-        {round.explanation}
-      </p>
-      <div className="mt-5 rounded-xl border border-[#54d9ff]/20 bg-[#54d9ff]/7 p-4">
-        <p className="text-xs font-black uppercase tracking-[.16em] text-[#9feaff]">
-          {language === "de"
-            ? "Durch deine Quelle belegt"
-            : "Grounded in your source"}
+              ? "NOCH NICHT GANZ"
+              : "NOT QUITE"}
+        </div>
+        <h2
+          className={`mt-5 text-3xl font-black sm:text-4xl ${correct ? "score-pop" : ""}`}
+        >
+          {correct
+            ? `+${awarded} ${language === "de" ? "Punkte" : "points"}`
+            : adaptive
+              ? language === "de"
+                ? "Hohe Sicherheit erkannt."
+                : "Confidence detected."
+              : language === "de"
+                ? "Lerne daraus und hol dir die nächste Runde."
+                : "Learn it, then steal the next one."}
+        </h2>
+        <p className="mt-4 max-w-2xl text-lg leading-8 text-white/62">
+          {round.explanation}
         </p>
-        <p className="mt-2 text-sm leading-6 text-white/55">{round.evidence}</p>
-      </div>
-      {adaptive && (
-        <div className="mt-6 rounded-2xl border border-[#ff6fae]/25 bg-[#ff6fae]/8 p-5">
-          <p className="font-black text-[#ff9bc6]">
-            ⚡{" "}
+        <div className="mt-5 rounded-xl border border-[#54d9ff]/20 bg-[#54d9ff]/7 p-4">
+          <p className="text-xs font-black uppercase tracking-[.16em] text-[#9feaff]">
             {language === "de"
-              ? "Fehlvorstellung erkannt"
-              : "Misconception detected"}
+              ? "Durch deine Quelle belegt"
+              : "Grounded in your source"}
           </p>
           <p className="mt-2 text-sm leading-6 text-white/55">
-            {language === "de"
-              ? "Die hohe Sicherheit bei dieser Antwort zeigt ein Konzept, das in deinem Lernrückblick erneut aufgegriffen wird."
-              : "High confidence in this answer reveals a concept worth revisiting in your learning recap."}
+            {round.evidence}
           </p>
         </div>
-      )}
-      {responseCount !== undefined && (
-        <p className="mt-6 text-sm font-bold text-[#9feaff]">
-          {responseCount} {language === "de" ? "von" : "of"} {playerCount}{" "}
-          {language === "de"
-            ? "Spielern haben geantwortet"
-            : "players locked in"}
-        </p>
-      )}
-      {waiting ? (
-        <div className="mt-8 inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[.05] px-6 py-4 text-white/55">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-[#72f0c5]" />
-          {language === "de"
-            ? "Warte, bis der Host die nächste Runde startet…"
-            : "Waiting for host to reveal the next round…"}
-        </div>
-      ) : (
-        <button
-          onClick={advance}
-          className="mt-8 rounded-2xl bg-[#ffd84d] px-7 py-4 font-black text-[#101329]"
-        >
-          {adaptive
-            ? language === "de"
-              ? "Showdown fortsetzen →"
-              : "Continue showdown →"
-            : round.id === "artery-confidence"
+        {adaptive && (
+          <div className="mt-6 rounded-2xl border border-[#ff6fae]/25 bg-[#ff6fae]/8 p-5">
+            <p className="font-black text-[#ff9bc6]">
+              ⚡{" "}
+              {language === "de"
+                ? "Fehlvorstellung erkannt"
+                : "Misconception detected"}
+            </p>
+            <p className="mt-2 text-sm leading-6 text-white/55">
+              {language === "de"
+                ? "Die hohe Sicherheit bei dieser Antwort zeigt ein Konzept, das in deinem Lernrückblick erneut aufgegriffen wird."
+                : "High confidence in this answer reveals a concept worth revisiting in your learning recap."}
+            </p>
+          </div>
+        )}
+        {responseCount !== undefined && (
+          <p className="mt-6 text-sm font-bold text-[#9feaff]">
+            {responseCount} {language === "de" ? "von" : "of"} {playerCount}{" "}
+            {language === "de"
+              ? "Spielern haben geantwortet"
+              : "players locked in"}
+          </p>
+        )}
+        {waiting ? (
+          <div className="mt-8 inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[.05] px-6 py-4 text-white/55">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-[#72f0c5]" />
+            {language === "de"
+              ? "Warte, bis der Host die nächste Runde startet…"
+              : "Waiting for host to reveal the next round…"}
+          </div>
+        ) : (
+          <button
+            onClick={advance}
+            className="mt-8 rounded-2xl bg-[#ffd84d] px-7 py-4 font-black text-[#101329]"
+          >
+            {adaptive
               ? language === "de"
-                ? "Endergebnis ansehen →"
-                : "See final results →"
-              : language === "de"
-                ? "Nächste Runde →"
-                : "Next round →"}
-        </button>
-      )}
+                ? "Showdown fortsetzen →"
+                : "Continue showdown →"
+              : round.id === "artery-confidence"
+                ? language === "de"
+                  ? "Endergebnis ansehen →"
+                  : "See final results →"
+                : language === "de"
+                  ? "Nächste Runde →"
+                  : "Next round →"}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -1596,66 +1800,114 @@ function Podium({
   const ranking = (
     livePlayers?.length
       ? livePlayers
-      : [
-          {
-            id: "you",
-            name: playerName,
-            score,
-            answeredRound: 2,
-            role: "player" as const,
-          },
-        ]
+      : demoPlayers.map((player, index) => ({
+          id: `demo-${index}`,
+          name:
+            player.name === "You"
+              ? playerName === "You" && language === "de"
+                ? "Du"
+                : playerName
+              : player.name,
+          score: player.name === "You" ? score : player.score,
+          answeredRound: 4,
+          role: "player" as const,
+        }))
   )
     .slice()
     .sort((a, b) => b.score - a.score);
+  const podiumOrder = [ranking[1], ranking[0], ranking[2]].filter(Boolean);
+  const podiumHeights = ["h-32", "h-44", "h-24"];
+  const podiumRanks = [2, 1, 3];
   return (
-    <main className="relative z-10 min-h-screen bg-[#080a19] px-5 py-16 text-center text-white">
-      <p className="text-sm font-black uppercase tracking-[.2em] text-[#ffd84d]">
-        {language === "de" ? "Showdown beendet" : "Showdown complete"}
-      </p>
-      <h1 className="mt-4 text-5xl font-black tracking-[-.05em] sm:text-7xl">
-        {language === "de" ? "Endstand." : "Final standings."}
-      </h1>
-      <div className="mx-auto mt-12 max-w-xl space-y-3">
-        {ranking.map((player, index) => (
-          <div
-            key={player.id}
-            className={`flex items-center rounded-2xl border p-5 text-left ${index === 0 ? "border-[#ffd84d]/40 bg-[#ffd84d]/12" : "border-white/10 bg-white/[.05]"}`}
-          >
-            <span className="w-12 text-2xl font-black text-[#ffd84d]">
-              #{index + 1}
-            </span>
-            <b className="flex-1">{player.name}</b>
-            <span className="font-black">
-              {player.score.toLocaleString()}{" "}
-              {language === "de" ? "Pkt." : "pts"}
-            </span>
-          </div>
-        ))}
-      </div>
-      <div className="mx-auto mt-10 max-w-xl rounded-2xl border border-[#72f0c5]/20 bg-[#72f0c5]/8 p-6 text-left">
-        <p className="font-black text-[#72f0c5]">
-          {language === "de" ? "Lernrückblick" : "Learning recap"}
+    <main className="relative z-10 min-h-screen overflow-hidden bg-[#080a19] px-5 py-12 text-center text-white sm:py-16">
+      <div className="arena-grid" />
+      <div className="pointer-events-none absolute left-1/2 top-0 h-[34rem] w-[34rem] -translate-x-1/2 rounded-full bg-[#ffd84d]/12 blur-3xl" />
+      <div className="relative z-10">
+        <p className="text-sm font-black uppercase tracking-[.2em] text-[#ffd84d]">
+          {language === "de" ? "Showdown beendet" : "Showdown complete"}
         </p>
-        <p className="mt-2 leading-7 text-white/60">
+        <h1 className="mt-4 text-5xl font-black tracking-[-.05em] sm:text-7xl">
+          {language === "de" ? "Das Podium steht." : "The podium is set."}
+        </h1>
+        <p className="mx-auto mt-4 max-w-lg text-white/45">
           {language === "de"
-            ? "Der Showdown macht aus Antworten und Sicherheit sofort sichtbar, wo Stärken und Fehlvorstellungen liegen."
-            : "The showdown turned answers and confidence into an instant view of strengths and misconceptions."}
+            ? "Wissen, Tempo und Mut entscheiden den finalen Rang."
+            : "Knowledge, speed, and confidence decide the final rank."}
         </p>
-      </div>
-      <div className="mt-8 flex justify-center gap-3">
-        <button
-          onClick={reset}
-          className="rounded-2xl bg-[#ffd84d] px-7 py-4 font-black text-[#101329]"
-        >
-          {language === "de" ? "Nochmal spielen" : "Play again"}
-        </button>
-        <Link
-          href="/"
-          className="rounded-2xl border border-white/10 px-7 py-4 font-bold"
-        >
-          {t("backHome")}
-        </Link>
+
+        <div className="mx-auto mt-12 flex max-w-3xl items-end justify-center gap-2 sm:gap-4">
+          {podiumOrder.map((player, index) => (
+            <div
+              key={player.id}
+              className="flex w-1/3 max-w-56 flex-col items-center"
+            >
+              <div
+                className={`stage-enter relative grid h-16 w-16 place-items-center rounded-full border-4 text-lg font-black text-[#101329] shadow-2xl sm:h-20 sm:w-20 ${podiumRanks[index] === 1 ? "border-[#fff2a6] bg-[#ffd84d] shadow-[#ffd84d]/30" : podiumRanks[index] === 2 ? "border-white/70 bg-[#cbd5e1]" : "border-[#f5b27b] bg-[#c97b47]"}`}
+              >
+                {player.name[0]?.toUpperCase()}
+                {podiumRanks[index] === 1 && (
+                  <span className="absolute -top-7 text-3xl">♛</span>
+                )}
+              </div>
+              <b className="mt-3 max-w-full truncate text-sm sm:text-lg">
+                {player.name}
+              </b>
+              <span className="mt-1 text-xs font-black text-white/45 sm:text-sm">
+                {player.score.toLocaleString()}{" "}
+                {language === "de" ? "Pkt." : "pts"}
+              </span>
+              <div
+                className={`mt-3 flex w-full items-start justify-center rounded-t-2xl border border-b-0 border-white/10 bg-gradient-to-b pt-4 text-3xl font-black ${podiumHeights[index]} ${podiumRanks[index] === 1 ? "from-[#ffd84d]/30 to-[#ffd84d]/5 text-[#ffd84d]" : podiumRanks[index] === 2 ? "from-white/15 to-white/[.03] text-white/65" : "from-[#c97b47]/25 to-[#c97b47]/5 text-[#e6a475]"}`}
+              >
+                {podiumRanks[index]}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {ranking.length > 3 && (
+          <div className="mx-auto mt-3 max-w-3xl space-y-2">
+            {ranking.slice(3).map((player, index) => (
+              <div
+                key={player.id}
+                className="flex items-center rounded-xl border border-white/8 bg-white/[.04] px-4 py-3 text-left text-sm"
+              >
+                <span className="w-10 font-black text-white/30">
+                  #{index + 4}
+                </span>
+                <b className="flex-1">{player.name}</b>
+                <span className="font-black text-white/55">
+                  {player.score.toLocaleString()}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="mx-auto mt-10 max-w-3xl rounded-2xl border border-[#72f0c5]/20 bg-[#72f0c5]/8 p-6 text-left">
+          <p className="font-black text-[#72f0c5]">
+            {language === "de" ? "Lernrückblick" : "Learning recap"}
+          </p>
+          <p className="mt-2 leading-7 text-white/60">
+            {language === "de"
+              ? "Der Showdown macht aus Antworten und Sicherheit sofort sichtbar, wo Stärken und Fehlvorstellungen liegen."
+              : "The showdown turned answers and confidence into an instant view of strengths and misconceptions."}
+          </p>
+        </div>
+        <div className="mt-8 flex flex-wrap justify-center gap-3">
+          <button
+            onClick={reset}
+            className="rounded-2xl bg-[#ffd84d] px-7 py-4 font-black text-[#101329]"
+          >
+            {language === "de" ? "Nochmal spielen" : "Play again"}
+          </button>
+          <Link
+            href="/"
+            className="rounded-2xl border border-white/10 px-7 py-4 font-bold"
+          >
+            {t("backHome")}
+          </Link>
+        </div>
       </div>
     </main>
   );
