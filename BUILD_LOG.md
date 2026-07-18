@@ -27,6 +27,7 @@ Codex helped narrow the scope, compare delivery architectures, define the techni
 - Added room creation and join flows with shareable six-character codes.
 - Added Supabase Realtime Presence for lobby membership and Broadcast for synchronized game start, plus an explicit single-device fallback when realtime configuration is unavailable.
 - Extended the room session into gameplay: room identity survives navigation, only the host advances shared rounds, players follow round-change and game-finish broadcasts, and connection state stays visible in the game header.
+- Production smoke testing exposed a Vercel timeout with the default GPT-5.6 Sol alias. Switched the latency-sensitive generator to GPT-5.6 Terra with minimal reasoning and a bounded output budget while retaining Structured Outputs and the same validation contract.
 
 ## Verification
 
