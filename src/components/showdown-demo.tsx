@@ -4,42 +4,71 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { demoPack } from "@/data/demo-pack";
-import type { GamePack, GameRound } from "@/lib/game-pack";
+import { gamePackSchema, type GamePack, type GameRound } from "@/lib/game-pack";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 
 type Phase = "lobby" | "question" | "result" | "remediation" | "podium";
-const players = [
+const demoPlayers = [
   { name: "Maya", score: 2240, color: "#ff6fae" },
   { name: "You", score: 1980, color: "#ffd84d" },
   { name: "Leo", score: 1740, color: "#54d9ff" },
   { name: "Noor", score: 1510, color: "#9d7cff" },
 ];
 
-export function ShowdownDemo({ pack = demoPack, roomCode, isHost = true }: { pack?: GamePack; roomCode?: string; isHost?: boolean }) {
-  const [phase, setPhase] = useState<Phase>("lobby");
+type LivePlayer = { id: string; name: string; score: number; answeredRound: number; role: "host" | "player" };
+
+export function ShowdownDemo({ pack = demoPack, roomCode, isHost = true, playerName = "You" }: { pack?: GamePack; roomCode?: string; isHost?: boolean; playerName?: string }) {
+  const [clientId] = useState(() => typeof window === "undefined" ? "server-player" : crypto.randomUUID());
+  const [activePack, setActivePack] = useState(pack);
+  const [phase, setPhase] = useState<Phase>(roomCode ? "question" : "lobby");
   const [roundIndex, setRoundIndex] = useState(0);
-  const [score, setScore] = useState(1980);
+  const [score, setScore] = useState(roomCode ? 0 : 1980);
   const [selected, setSelected] = useState<string | null>(null);
   const [confidence, setConfidence] = useState(2);
   const [sequence, setSequence] = useState<string[]>([]);
   const [roomLive, setRoomLive] = useState(false);
+  const [answeredRound, setAnsweredRound] = useState(-1);
+  const [livePlayers, setLivePlayers] = useState<LivePlayer[]>([]);
   const channelRef = useRef<RealtimeChannel | null>(null);
-  const round = pack.rounds[roundIndex];
+  const round = activePack.rounds[roundIndex];
+
+  useEffect(() => {
+    if (!roomCode) return;
+    const stored = sessionStorage.getItem(`showdown:pack:${roomCode}`);
+    if (!stored) return;
+    try {
+      const parsed = gamePackSchema.safeParse(JSON.parse(stored));
+      if (parsed.success) queueMicrotask(() => setActivePack(parsed.data));
+    } catch { /* keep deterministic fallback */ }
+  }, [roomCode]);
 
   useEffect(() => {
     if (!roomCode) return;
     const supabase = getSupabaseBrowserClient();
     if (!supabase) return;
-    const channel = supabase.channel(`game:${roomCode}`, { config: { broadcast: { ack: true, self: false } } });
-    channel.on("broadcast", { event: "round-change" }, ({ payload }) => {
+    const channel = supabase.channel(`game:${roomCode}`, { config: { presence: { key: clientId }, broadcast: { ack: true, self: false } } });
+    channel.on("presence", { event: "sync" }, () => {
+      const state = channel.presenceState<LivePlayer>();
+      setLivePlayers(Object.values(state).flat().map(entry => ({ id: entry.id, name: entry.name, score: entry.score, answeredRound: entry.answeredRound, role: entry.role })));
+    }).on("broadcast", { event: "round-change" }, ({ payload }) => {
       const next = Number(payload.roundIndex);
-      if (!Number.isInteger(next) || next < 0 || next >= pack.rounds.length) return;
-      setRoundIndex(next); setSelected(null); setSequence([]); setPhase("question");
+      if (!Number.isInteger(next) || next < 0 || next >= activePack.rounds.length) return;
+      setRoundIndex(next); setAnsweredRound(-1); setSelected(null); setSequence([]); setPhase("question");
     }).on("broadcast", { event: "game-finish" }, () => setPhase("podium"))
-      .subscribe(status => { if (status === "SUBSCRIBED") setRoomLive(true); });
+      .subscribe(async status => {
+        if (status === "SUBSCRIBED") {
+          setRoomLive(true);
+          await channel.track({ id: clientId, name: playerName, score: 0, answeredRound: -1, role: isHost ? "host" : "player" });
+        }
+      });
     channelRef.current = channel;
     return () => { channelRef.current = null; void supabase.removeChannel(channel); };
-  }, [pack.rounds.length, roomCode]);
+  }, [activePack.rounds.length, clientId, isHost, playerName, roomCode]);
+
+  useEffect(() => {
+    if (!roomLive) return;
+    void channelRef.current?.track({ id: clientId, name: playerName, score, answeredRound, role: isHost ? "host" : "player" });
+  }, [answeredRound, clientId, isHost, playerName, roomLive, score]);
 
   const correct = useMemo(() => {
     if (round.type === "sequence") return sequence.join("|") === round.correctOrder.join("|");
@@ -55,17 +84,18 @@ export function ShowdownDemo({ pack = demoPack, roomCode, isHost = true }: { pac
     const answered = round.type === "sequence" ? sequence.length === round.items.length : selected !== null;
     if (!answered) return;
     if (correct) setScore((value) => value + Math.round(round.points * (round.type === "confidence" ? confidence / 3 : 0.7)));
+    setAnsweredRound(roundIndex);
     setPhase("result");
   }
 
   async function advance() {
     if (roomCode && !isHost) return;
-    if (round.type === "confidence" && !correct && confidence === 3 && selected === round.misconceptionOptionId) {
+    if (!roomCode && round.type === "confidence" && !correct && confidence === 3 && selected === round.misconceptionOptionId) {
       setSelected(null);
       setPhase("remediation");
       return;
     }
-    if (roundIndex === pack.rounds.length - 1) {
+    if (roundIndex === activePack.rounds.length - 1) {
       if (roomCode) await channelRef.current?.send({ type: "broadcast", event: "game-finish", payload: {} });
       setPhase("podium");
     }
@@ -73,6 +103,7 @@ export function ShowdownDemo({ pack = demoPack, roomCode, isHost = true }: { pac
       const nextRound = roundIndex + 1;
       if (roomCode) await channelRef.current?.send({ type: "broadcast", event: "round-change", payload: { roundIndex: nextRound } });
       setRoundIndex(nextRound);
+      setAnsweredRound(-1);
       setSelected(null);
       setSequence([]);
       setPhase("question");
@@ -83,7 +114,7 @@ export function ShowdownDemo({ pack = demoPack, roomCode, isHost = true }: { pac
     setPhase("lobby"); setRoundIndex(0); setScore(1980); setSelected(null); setSequence([]); setConfidence(2);
   }
 
-  if (phase === "podium") return <Podium score={score} reset={reset} />;
+  if (phase === "podium") return <Podium score={score} reset={reset} livePlayers={roomCode ? livePlayers : undefined} playerName={playerName} />;
 
   return (
     <main className="min-h-screen bg-[#080a19] text-white">
@@ -93,19 +124,19 @@ export function ShowdownDemo({ pack = demoPack, roomCode, isHost = true }: { pac
         <div className="flex items-center gap-3"><span className={`rounded-full px-3 py-1.5 text-xs font-bold ${roomCode ? "bg-[#54d9ff]/10 text-[#9feaff]" : "bg-[#72f0c5]/10 text-[#72f0c5]"}`}>● {roomCode ? `${roomLive ? "ROOM" : "LINKING"} ${roomCode}` : "LIVE DEMO"}</span><span className="font-black text-[#ffd84d]">{score.toLocaleString()} pts</span></div>
       </header>
 
-      {phase === "lobby" ? <Lobby pack={pack} start={() => setPhase("question")} /> : (
+      {phase === "lobby" ? <Lobby pack={activePack} start={() => setPhase("question")} /> : (
         <div className="relative z-10 mx-auto grid max-w-7xl gap-5 px-4 py-6 lg:grid-cols-[1fr_280px] lg:px-8">
           <section className="rounded-[1.75rem] border border-white/10 bg-[#11152d]/95 p-5 shadow-2xl sm:p-8">
-            <RoundHeader round={round} index={roundIndex} total={pack.rounds.length} />
+            <RoundHeader round={round} index={roundIndex} total={activePack.rounds.length} />
             {phase === "remediation" && round.type === "confidence" ? (
               <Remediation round={round} selected={selected} choose={setSelected} done={() => { setScore((v) => v + 350); setPhase("podium"); }} />
             ) : phase === "result" ? (
-              <Result round={round} correct={correct} confidence={confidence} advance={advance} waiting={Boolean(roomCode && !isHost)} />
+              <Result round={round} correct={correct} confidence={confidence} advance={advance} waiting={Boolean(roomCode && !isHost)} responseCount={roomCode ? livePlayers.filter(player => player.answeredRound === roundIndex).length : undefined} playerCount={roomCode ? livePlayers.length : undefined} />
             ) : (
               <Question round={round} selected={selected} sequence={sequence} confidence={confidence} choose={setSelected} chooseSequence={chooseSequence} setConfidence={setConfidence} submit={submit} />
             )}
           </section>
-          <Scoreboard score={score} />
+          <Scoreboard score={score} livePlayers={roomCode ? livePlayers : undefined} playerName={playerName} />
         </div>
       )}
     </main>
@@ -117,7 +148,7 @@ function Lobby({ pack, start }: { pack: GamePack; start: () => void }) {
     <p className="text-sm font-black uppercase tracking-[.2em] text-[#72f0c5]">Room SS26 · 4 players ready</p>
     <h1 className="mt-4 text-4xl font-black tracking-[-.05em] sm:text-6xl">{pack.title}</h1>
     <p className="mx-auto mt-4 max-w-xl text-lg text-white/55">{pack.sourceLabel}</p>
-    <div className="mx-auto mt-10 grid max-w-2xl grid-cols-2 gap-3 sm:grid-cols-4">{players.map((p) => <div key={p.name} className="rounded-2xl border border-white/10 bg-white/[.06] p-5"><span className="mx-auto grid h-12 w-12 place-items-center rounded-full font-black text-[#101329]" style={{background:p.color}}>{p.name[0]}</span><p className="mt-3 font-bold">{p.name}</p><p className="text-xs text-[#72f0c5]">Ready</p></div>)}</div>
+    <div className="mx-auto mt-10 grid max-w-2xl grid-cols-2 gap-3 sm:grid-cols-4">{demoPlayers.map((p) => <div key={p.name} className="rounded-2xl border border-white/10 bg-white/[.06] p-5"><span className="mx-auto grid h-12 w-12 place-items-center rounded-full font-black text-[#101329]" style={{background:p.color}}>{p.name[0]}</span><p className="mt-3 font-bold">{p.name}</p><p className="text-xs text-[#72f0c5]">Ready</p></div>)}</div>
     <button onClick={start} className="mt-10 rounded-2xl bg-[#ffd84d] px-9 py-4 text-lg font-black text-[#101329] shadow-[0_12px_40px_rgba(255,216,77,.2)] transition hover:-translate-y-0.5">Start the showdown →</button>
     <p className="mt-4 text-sm text-white/35">Interactive demo · about 2 minutes</p>
   </section>;
@@ -135,15 +166,15 @@ function Question(props: { round: GameRound; selected: string | null; sequence: 
 
 function Submit({ onClick }: { onClick: () => void }) { return <button onClick={onClick} className="mt-7 w-full rounded-2xl bg-[#ffd84d] px-6 py-4 font-black text-[#101329] transition hover:bg-[#ffe374]">Lock in answer</button>; }
 
-function Result({ round, correct, confidence, advance, waiting }: { round: GameRound; correct: boolean; confidence: number; advance: () => void; waiting: boolean }) {
+function Result({ round, correct, confidence, advance, waiting, responseCount, playerCount }: { round: GameRound; correct: boolean; confidence: number; advance: () => void; waiting: boolean; responseCount?: number; playerCount?: number }) {
   const adaptive = round.type === "confidence" && !correct && confidence === 3;
-  return <div className="py-4"><div className={`inline-flex rounded-full px-4 py-2 text-sm font-black ${correct ? "bg-[#72f0c5]/12 text-[#72f0c5]" : "bg-[#ff6fae]/12 text-[#ff8fbd]"}`}>{correct ? "✓ Correct!" : "Not quite"}</div><h2 className="mt-5 text-3xl font-black">{correct ? `+${Math.round(round.points * (round.type === "confidence" ? confidence / 3 : .7))} points` : adaptive ? "Confidence detected." : "Learn it, then steal the next one."}</h2><p className="mt-4 max-w-2xl text-lg leading-8 text-white/62">{round.explanation}</p>{adaptive && <div className="mt-6 rounded-2xl border border-[#ff6fae]/25 bg-[#ff6fae]/8 p-5"><p className="font-black text-[#ff9bc6]">⚡ Adaptive branch unlocked</p><p className="mt-2 text-sm leading-6 text-white/55">You were highly confident in a common misconception, so the game is changing the next challenge instead of merely showing a red X.</p></div>}{waiting?<div className="mt-8 inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[.05] px-6 py-4 text-white/55"><span className="h-2 w-2 animate-pulse rounded-full bg-[#72f0c5]"/>Waiting for host to reveal the next round…</div>:<button onClick={advance} className="mt-8 rounded-2xl bg-[#ffd84d] px-7 py-4 font-black text-[#101329]">{adaptive ? "Take comeback round →" : round.id === "artery-confidence" ? "See final results →" : "Next round →"}</button>}</div>;
+  return <div className="py-4"><div className={`inline-flex rounded-full px-4 py-2 text-sm font-black ${correct ? "bg-[#72f0c5]/12 text-[#72f0c5]" : "bg-[#ff6fae]/12 text-[#ff8fbd]"}`}>{correct ? "✓ Correct!" : "Not quite"}</div><h2 className="mt-5 text-3xl font-black">{correct ? `+${Math.round(round.points * (round.type === "confidence" ? confidence / 3 : .7))} points` : adaptive ? "Confidence detected." : "Learn it, then steal the next one."}</h2><p className="mt-4 max-w-2xl text-lg leading-8 text-white/62">{round.explanation}</p>{adaptive && <div className="mt-6 rounded-2xl border border-[#ff6fae]/25 bg-[#ff6fae]/8 p-5"><p className="font-black text-[#ff9bc6]">⚡ Misconception detected</p><p className="mt-2 text-sm leading-6 text-white/55">High confidence in this answer reveals a concept worth revisiting in your learning recap.</p></div>}{responseCount !== undefined && <p className="mt-6 text-sm font-bold text-[#9feaff]">{responseCount} of {playerCount} players locked in</p>}{waiting?<div className="mt-8 inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[.05] px-6 py-4 text-white/55"><span className="h-2 w-2 animate-pulse rounded-full bg-[#72f0c5]"/>Waiting for host to reveal the next round…</div>:<button onClick={advance} className="mt-8 rounded-2xl bg-[#ffd84d] px-7 py-4 font-black text-[#101329]">{adaptive ? "Continue showdown →" : round.id === "artery-confidence" ? "See final results →" : "Next round →"}</button>}</div>;
 }
 
 function Remediation({ round, selected, choose, done }: { round: Extract<GameRound,{type:"confidence"}>; selected: string | null; choose: (id:string)=>void; done:()=>void }) {
   return <div><span className="rounded-full bg-[#ff6fae]/12 px-3 py-1.5 text-xs font-black text-[#ff9bc6]">PERSONALIZED COMEBACK</span><h2 className="mt-5 text-2xl font-black leading-9">{round.remediation.prompt}</h2><p className="mt-3 text-white/55">{round.misconception}</p><div className="mt-7 grid gap-3 sm:grid-cols-2">{round.remediation.options.map(o=><button key={o.id} onClick={()=>choose(o.id)} className={`rounded-2xl border p-5 text-left font-bold ${selected===o.id?"border-[#72f0c5] bg-[#72f0c5]/10":"border-white/10 bg-white/[.05]"}`}>{o.label}</button>)}</div><button disabled={!selected} onClick={done} className="mt-7 w-full rounded-2xl bg-[#72f0c5] px-6 py-4 font-black text-[#101329] disabled:cursor-not-allowed disabled:opacity-30">Finish comeback +350</button></div>;
 }
 
-function Scoreboard({ score }: { score: number }) { const live=players.map(p=>p.name==="You"?{...p,score}:p).sort((a,b)=>b.score-a.score); return <aside className="h-fit rounded-[1.5rem] border border-white/10 bg-white/[.045] p-5"><p className="text-xs font-black uppercase tracking-[.18em] text-white/35">Live standings</p><div className="mt-4 space-y-3">{live.map((p,i)=><div key={p.name} className={`flex items-center gap-3 rounded-xl p-3 ${p.name==="You"?"bg-[#ffd84d]/10":"bg-white/[.035]"}`}><b className="w-4 text-white/35">{i+1}</b><span className="grid h-8 w-8 place-items-center rounded-full text-xs font-black text-[#101329]" style={{background:p.color}}>{p.name[0]}</span><span className="flex-1 font-bold">{p.name}</span><span className="text-sm font-black">{p.score}</span></div>)}</div></aside>; }
+function Scoreboard({ score, livePlayers, playerName }: { score: number; livePlayers?: LivePlayer[]; playerName: string }) { const colors=["#ffd84d","#ff6fae","#54d9ff","#9d7cff","#72f0c5"]; const live: Array<{id:string;name:string;score:number;color:string}>=(livePlayers?.length ? livePlayers.map((p,i)=>({id:p.id,name:p.name,score:p.score,color:colors[i%colors.length]})) : demoPlayers.map(p=>({id:`demo-${p.name}`,name:p.name,score:p.name==="You"?score:p.score,color:p.color}))).sort((a,b)=>b.score-a.score); return <aside className="h-fit rounded-[1.5rem] border border-white/10 bg-white/[.045] p-5"><p className="text-xs font-black uppercase tracking-[.18em] text-white/35">Live standings</p><div className="mt-4 space-y-3">{live.map((p,i)=><div key={p.id} className={`flex items-center gap-3 rounded-xl p-3 ${p.name===playerName||p.name==="You"?"bg-[#ffd84d]/10":"bg-white/[.035]"}`}><b className="w-4 text-white/35">{i+1}</b><span className="grid h-8 w-8 place-items-center rounded-full text-xs font-black text-[#101329]" style={{background:p.color}}>{p.name[0]}</span><span className="flex-1 truncate font-bold">{p.name}</span><span className="text-sm font-black">{p.score}</span></div>)}</div></aside>; }
 
-function Podium({ score, reset }: { score: number; reset: () => void }) { return <main className="relative z-10 min-h-screen bg-[#080a19] px-5 py-16 text-center text-white"><p className="text-sm font-black uppercase tracking-[.2em] text-[#ffd84d]">Showdown complete</p><h1 className="mt-4 text-5xl font-black tracking-[-.05em] sm:text-7xl">You made the podium.</h1><div className="mx-auto mt-12 flex max-w-xl items-end justify-center gap-3"><div className="w-1/3 rounded-t-2xl bg-[#54d9ff]/20 p-5 pt-8"><b>Leo</b><p className="text-sm text-white/45">1,740</p><div className="mt-5 text-3xl">3</div></div><div className="w-1/3 rounded-t-2xl bg-[#ffd84d]/20 p-5 pt-16 ring-1 ring-[#ffd84d]/40"><b className="text-[#ffd84d]">You</b><p className="text-sm text-white/45">{score.toLocaleString()}</p><div className="mt-5 text-4xl">1</div></div><div className="w-1/3 rounded-t-2xl bg-[#ff6fae]/20 p-5 pt-11"><b>Maya</b><p className="text-sm text-white/45">2,240</p><div className="mt-5 text-3xl">2</div></div></div><div className="mx-auto mt-10 max-w-xl rounded-2xl border border-[#72f0c5]/20 bg-[#72f0c5]/8 p-6 text-left"><p className="font-black text-[#72f0c5]">Learning recap</p><p className="mt-2 leading-7 text-white/60">Strong on blood flow and vessel structure. You corrected the key misconception: arteries are defined by direction, not oxygen content.</p></div><div className="mt-8 flex justify-center gap-3"><button onClick={reset} className="rounded-2xl bg-[#ffd84d] px-7 py-4 font-black text-[#101329]">Play again</button><Link href="/" className="rounded-2xl border border-white/10 px-7 py-4 font-bold">Back home</Link></div></main>; }
+function Podium({ score, reset, livePlayers, playerName }: { score: number; reset: () => void; livePlayers?: LivePlayer[]; playerName: string }) { const ranking=(livePlayers?.length?livePlayers:[{id:"you",name:playerName,score,answeredRound:2,role:"player" as const}]).slice().sort((a,b)=>b.score-a.score); return <main className="relative z-10 min-h-screen bg-[#080a19] px-5 py-16 text-center text-white"><p className="text-sm font-black uppercase tracking-[.2em] text-[#ffd84d]">Showdown complete</p><h1 className="mt-4 text-5xl font-black tracking-[-.05em] sm:text-7xl">Final standings.</h1><div className="mx-auto mt-12 max-w-xl space-y-3">{ranking.map((player,index)=><div key={player.id} className={`flex items-center rounded-2xl border p-5 text-left ${index===0?"border-[#ffd84d]/40 bg-[#ffd84d]/12":"border-white/10 bg-white/[.05]"}`}><span className="w-12 text-2xl font-black text-[#ffd84d]">#{index+1}</span><b className="flex-1">{player.name}</b><span className="font-black">{player.score.toLocaleString()} pts</span></div>)}</div><div className="mx-auto mt-10 max-w-xl rounded-2xl border border-[#72f0c5]/20 bg-[#72f0c5]/8 p-6 text-left"><p className="font-black text-[#72f0c5]">Learning recap</p><p className="mt-2 leading-7 text-white/60">The showdown turned answers and confidence into an instant view of strengths and misconceptions.</p></div><div className="mt-8 flex justify-center gap-3"><button onClick={reset} className="rounded-2xl bg-[#ffd84d] px-7 py-4 font-black text-[#101329]">Play again</button><Link href="/" className="rounded-2xl border border-white/10 px-7 py-4 font-bold">Back home</Link></div></main>; }

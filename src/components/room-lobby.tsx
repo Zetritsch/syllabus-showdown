@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
+import { demoPack } from "@/data/demo-pack";
+import { gamePackSchema, type GamePack } from "@/lib/game-pack";
 
 type Player = { id: string; name: string; role: "host" | "player"; onlineAt: string };
 const colors = ["#ffd84d", "#ff6fae", "#54d9ff", "#9d7cff", "#72f0c5"];
@@ -15,6 +17,15 @@ export function RoomLobby({ code, name, isHost }: { code: string; name: string; 
   const [players, setPlayers] = useState<Player[]>([self]);
   const [status, setStatus] = useState<"connecting" | "live" | "demo">(realtimeEnabled ? "connecting" : "demo");
   const [copied, setCopied] = useState(false);
+  const [roomPack] = useState<GamePack>(() => {
+    if (typeof window === "undefined") return demoPack;
+    const stored = sessionStorage.getItem(`showdown:pack:${code}`);
+    if (!stored) return demoPack;
+    try {
+      const parsed = gamePackSchema.safeParse(JSON.parse(stored));
+      return parsed.success ? parsed.data : demoPack;
+    } catch { return demoPack; }
+  });
 
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
@@ -24,21 +35,26 @@ export function RoomLobby({ code, name, isHost }: { code: string; name: string; 
       const state = channel.presenceState<Player>();
       const online = Object.values(state).flat().map((entry) => ({ id: entry.id, name: entry.name, role: entry.role, onlineAt: entry.onlineAt }));
       setPlayers(online);
-    }).on("broadcast", { event: "game-start" }, () => router.push(`/demo?room=${code}&role=player`))
+    }).on("broadcast", { event: "game-start" }, ({ payload }) => {
+      const parsed = gamePackSchema.safeParse(payload.pack);
+      if (parsed.success) sessionStorage.setItem(`showdown:pack:${code}`, JSON.stringify(parsed.data));
+      router.push(`/demo?room=${code}&role=player&name=${encodeURIComponent(name)}`);
+    })
       .subscribe(async (next) => {
         if (next === "SUBSCRIBED") { setStatus("live"); await channel.track(self); }
         if (next === "CHANNEL_ERROR" || next === "TIMED_OUT") setStatus("demo");
       });
     return () => { void channel.untrack(); void supabase.removeChannel(channel); };
-  }, [clientId, code, router, self]);
+  }, [clientId, code, name, router, self]);
 
   async function start() {
     const supabase = getSupabaseBrowserClient();
     if (supabase && status === "live") {
       const channel = supabase.getChannels().find(item => item.topic.endsWith(`showdown:${code}`));
-      await channel?.send({ type: "broadcast", event: "game-start", payload: { at: Date.now() } });
+      await channel?.send({ type: "broadcast", event: "game-start", payload: { at: Date.now(), pack: roomPack } });
     }
-    router.push(`/demo?room=${code}&role=${isHost ? "host" : "player"}`);
+    sessionStorage.setItem(`showdown:pack:${code}`, JSON.stringify(roomPack));
+    router.push(`/demo?room=${code}&role=${isHost ? "host" : "player"}&name=${encodeURIComponent(name)}`);
   }
 
   async function copyInvite() {

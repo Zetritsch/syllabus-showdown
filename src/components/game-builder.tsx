@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ShowdownDemo } from "@/components/showdown-demo";
 import { gamePackSchema, type GamePack } from "@/lib/game-pack";
@@ -8,11 +9,23 @@ import { gamePackSchema, type GamePack } from "@/lib/game-pack";
 const sample = `The water cycle describes how water moves between Earth's surface and atmosphere. Evaporation occurs when liquid water gains energy and becomes water vapor. Plants also release water vapor through transpiration. As moist air rises and cools, water vapor condenses into tiny droplets that form clouds. When droplets grow heavy enough, water returns to Earth as precipitation such as rain or snow. Water then collects in oceans, lakes, rivers, soil, and groundwater before the cycle repeats. The Sun supplies most of the energy that drives evaporation. Condensation does not mean clouds are made of invisible gas; clouds contain tiny liquid droplets or ice crystals.`;
 
 export function GameBuilder() {
+  const router = useRouter();
   const [material, setMaterial] = useState(sample);
   const [pack, setPack] = useState<GamePack | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  if (pack) return <ShowdownDemo pack={pack} />;
+  const [solo, setSolo] = useState(false);
+  const [hostName, setHostName] = useState("Host");
+  if (pack && solo) return <ShowdownDemo pack={pack} />;
+  if (pack) {
+    const hostMultiplayer = () => {
+      const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      const code = Array.from({ length: 6 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join("");
+      sessionStorage.setItem(`showdown:pack:${code}`, JSON.stringify(pack));
+      router.push(`/room/${code}?role=host&name=${encodeURIComponent(hostName.trim() || "Host")}`);
+    };
+    return <main className="min-h-screen bg-[#080a19] px-5 py-10 text-white"><div className="arena-grid"/><section className="relative z-10 mx-auto max-w-3xl rounded-[2rem] border border-white/10 bg-[#11152d]/95 p-6 sm:p-10"><p className="text-sm font-black uppercase tracking-[.2em] text-[#72f0c5]">✓ Validated game pack</p><h1 className="mt-3 text-4xl font-black tracking-[-.04em] sm:text-5xl">{pack.title}</h1><p className="mt-3 text-white/50">{pack.subject} · {pack.sourceLabel}</p><div className="mt-8 grid gap-3 sm:grid-cols-3">{pack.rounds.map((round,index)=><article key={round.id} className="rounded-2xl border border-white/10 bg-white/[.05] p-5"><span className="text-xs font-black text-[#8f78ff]">ROUND {index+1}</span><h2 className="mt-2 font-black">{round.title}</h2><p className="mt-1 text-sm text-white/40">{round.type}</p></article>)}</div><label className="mt-8 block text-sm font-bold text-white/60">Your host name</label><input value={hostName} onChange={event=>setHostName(event.target.value)} maxLength={20} className="mt-2 w-full rounded-xl border border-white/10 bg-white/[.055] px-4 py-3.5 outline-none focus:border-[#8f78ff]"/><div className="mt-6 grid gap-3 sm:grid-cols-2"><button onClick={hostMultiplayer} className="rounded-2xl bg-[#ffd84d] px-6 py-4 font-black text-[#101329]">Host multiplayer →</button><button onClick={()=>setSolo(true)} className="rounded-2xl border border-white/12 bg-white/[.05] px-6 py-4 font-bold">Play solo</button></div><button onClick={()=>setPack(null)} className="mt-5 text-sm font-bold text-white/40 hover:text-white">← Generate another pack</button></section></main>;
+  }
 
   async function generate() {
     setLoading(true); setError("");
