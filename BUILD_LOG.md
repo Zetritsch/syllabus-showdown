@@ -50,3 +50,4 @@ Codex helped narrow the scope, compare delivery architectures, define the techni
 - Production four-round test passed after adding Sort Reactor: the same image-only PDF generated sequence, sort, visual-map, and confidence rounds with two buckets, six items, six validated assignments, four spatial zones, and four diagram links.
 - Added the Hotspot Hunt contract and server rendering foundation: the model selects a normalized target on a real PDF page, while the server injects a trusted compressed JPEG instead of accepting model-generated image data.
 - Implemented Hotspot Hunt's crosshair interaction on the original PDF page and added a deterministic circulation diagram to the judge demo.
+- Added explicit Next.js output tracing for the native Linux canvas binding used by the Vercel PDF rendering function.

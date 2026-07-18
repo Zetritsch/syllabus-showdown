@@ -143,7 +143,16 @@ export async function POST(request: Request) {
       );
     }
     return Response.json(
-      { error: "Visual PDF generation failed. Please try another file." },
+      {
+        error: "Visual PDF generation failed. Please try another file.",
+        diagnostic: {
+          code: "visual_pipeline_error",
+          message:
+            error instanceof Error
+              ? error.message.slice(0, 240)
+              : "Unknown visual pipeline error",
+        },
+      },
       { status: 500 },
     );
   }
