@@ -44,3 +44,4 @@ Codex helped narrow the scope, compare delivery architectures, define the techni
 
 - `npm run lint` passes.
 - `npm run build` completes successfully with a statically prerendered landing route.
+- Production scan test passed: a one-page image-only PDF with zero extractable characters returned HTTP 200 and produced a source-grounded sequence, four-zone Visual Map Lab, confidence misconception, and the diagram's complete arrow loop.
