@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { demoPack } from "@/data/demo-pack";
-import type { GameRound } from "@/lib/game-pack";
+import type { GamePack, GameRound } from "@/lib/game-pack";
 
 type Phase = "lobby" | "question" | "result" | "remediation" | "podium";
 const players = [
@@ -13,14 +13,14 @@ const players = [
   { name: "Noor", score: 1510, color: "#9d7cff" },
 ];
 
-export function ShowdownDemo() {
+export function ShowdownDemo({ pack = demoPack }: { pack?: GamePack }) {
   const [phase, setPhase] = useState<Phase>("lobby");
   const [roundIndex, setRoundIndex] = useState(0);
   const [score, setScore] = useState(1980);
   const [selected, setSelected] = useState<string | null>(null);
   const [confidence, setConfidence] = useState(2);
   const [sequence, setSequence] = useState<string[]>([]);
-  const round = demoPack.rounds[roundIndex];
+  const round = pack.rounds[roundIndex];
 
   const correct = useMemo(() => {
     if (round.type === "sequence") return sequence.join("|") === round.correctOrder.join("|");
@@ -45,7 +45,7 @@ export function ShowdownDemo() {
       setPhase("remediation");
       return;
     }
-    if (roundIndex === demoPack.rounds.length - 1) setPhase("podium");
+    if (roundIndex === pack.rounds.length - 1) setPhase("podium");
     else {
       setRoundIndex((value) => value + 1);
       setSelected(null);
@@ -68,10 +68,10 @@ export function ShowdownDemo() {
         <div className="flex items-center gap-3"><span className="rounded-full bg-[#72f0c5]/10 px-3 py-1.5 text-xs font-bold text-[#72f0c5]">● LIVE DEMO</span><span className="font-black text-[#ffd84d]">{score.toLocaleString()} pts</span></div>
       </header>
 
-      {phase === "lobby" ? <Lobby start={() => setPhase("question")} /> : (
+      {phase === "lobby" ? <Lobby pack={pack} start={() => setPhase("question")} /> : (
         <div className="relative z-10 mx-auto grid max-w-7xl gap-5 px-4 py-6 lg:grid-cols-[1fr_280px] lg:px-8">
           <section className="rounded-[1.75rem] border border-white/10 bg-[#11152d]/95 p-5 shadow-2xl sm:p-8">
-            <RoundHeader round={round} index={roundIndex} />
+            <RoundHeader round={round} index={roundIndex} total={pack.rounds.length} />
             {phase === "remediation" && round.type === "confidence" ? (
               <Remediation round={round} selected={selected} choose={setSelected} done={() => { setScore((v) => v + 350); setPhase("podium"); }} />
             ) : phase === "result" ? (
@@ -87,19 +87,19 @@ export function ShowdownDemo() {
   );
 }
 
-function Lobby({ start }: { start: () => void }) {
+function Lobby({ pack, start }: { pack: GamePack; start: () => void }) {
   return <section className="relative z-10 mx-auto max-w-5xl px-5 py-12 text-center sm:py-20">
     <p className="text-sm font-black uppercase tracking-[.2em] text-[#72f0c5]">Room SS26 · 4 players ready</p>
-    <h1 className="mt-4 text-4xl font-black tracking-[-.05em] sm:text-6xl">{demoPack.title}</h1>
-    <p className="mx-auto mt-4 max-w-xl text-lg text-white/55">{demoPack.sourceLabel}</p>
+    <h1 className="mt-4 text-4xl font-black tracking-[-.05em] sm:text-6xl">{pack.title}</h1>
+    <p className="mx-auto mt-4 max-w-xl text-lg text-white/55">{pack.sourceLabel}</p>
     <div className="mx-auto mt-10 grid max-w-2xl grid-cols-2 gap-3 sm:grid-cols-4">{players.map((p) => <div key={p.name} className="rounded-2xl border border-white/10 bg-white/[.06] p-5"><span className="mx-auto grid h-12 w-12 place-items-center rounded-full font-black text-[#101329]" style={{background:p.color}}>{p.name[0]}</span><p className="mt-3 font-bold">{p.name}</p><p className="text-xs text-[#72f0c5]">Ready</p></div>)}</div>
     <button onClick={start} className="mt-10 rounded-2xl bg-[#ffd84d] px-9 py-4 text-lg font-black text-[#101329] shadow-[0_12px_40px_rgba(255,216,77,.2)] transition hover:-translate-y-0.5">Start the showdown →</button>
     <p className="mt-4 text-sm text-white/35">Interactive demo · about 2 minutes</p>
   </section>;
 }
 
-function RoundHeader({ round, index }: { round: GameRound; index: number }) {
-  return <div className="mb-8 flex items-start justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[.2em] text-[#8f78ff]">Round {index + 1} of {demoPack.rounds.length}</p><h1 className="mt-1 text-2xl font-black sm:text-3xl">{round.title}</h1><p className="mt-1 text-sm text-white/40">{round.concept}</p></div><span className="rounded-xl bg-white/[.06] px-3 py-2 text-sm font-black text-[#ffd84d]">+{round.points}</span></div>;
+function RoundHeader({ round, index, total }: { round: GameRound; index: number; total: number }) {
+  return <div className="mb-8 flex items-start justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[.2em] text-[#8f78ff]">Round {index + 1} of {total}</p><h1 className="mt-1 text-2xl font-black sm:text-3xl">{round.title}</h1><p className="mt-1 text-sm text-white/40">{round.concept}</p></div><span className="rounded-xl bg-white/[.06] px-3 py-2 text-sm font-black text-[#ffd84d]">+{round.points}</span></div>;
 }
 
 function Question(props: { round: GameRound; selected: string | null; sequence: string[]; confidence: number; choose: (id: string) => void; chooseSequence: (id: string) => void; setConfidence: (n: number) => void; submit: () => void }) {

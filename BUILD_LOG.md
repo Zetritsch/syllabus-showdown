@@ -22,6 +22,8 @@ Codex helped narrow the scope, compare delivery architectures, define the techni
 - Added a deterministic Cardiovascular Clash demo grounded in three learning goals.
 - Implemented the complete judge flow: lobby, live scoreboard, three round mechanics, confidence wagering, adaptive misconception branch, remediation challenge, and podium recap.
 - Kept the demo independent from OpenAI and Supabase so it remains reliable during judging; generated packs and realtime rooms can plug into the same model next.
+- Added a server-only GPT-5.6 Responses API route using Structured Outputs, prompt-injection boundaries, input limits, and a second runtime-validation pass.
+- Added an AI Game Studio that accepts source material, generates a custom pack, validates it in the browser, and launches it directly in the same playable engine.
 
 ## Verification
 
