@@ -688,6 +688,7 @@ export function ShowdownDemo({
                     : undefined
                 }
                 playerCount={roomCode ? livePlayers.length : undefined}
+                isLastRound={roundIndex === activePack.rounds.length - 1}
               />
             ) : (
               <Question
@@ -1538,6 +1539,7 @@ function Result({
   waiting,
   responseCount,
   playerCount,
+  isLastRound,
 }: {
   round: GameRound;
   correct: boolean;
@@ -1546,6 +1548,7 @@ function Result({
   waiting: boolean;
   responseCount?: number;
   playerCount?: number;
+  isLastRound: boolean;
 }) {
   const { language } = useLanguage();
   const adaptive = round.type === "confidence" && !correct && confidence === 3;
@@ -1666,7 +1669,7 @@ function Result({
               ? language === "de"
                 ? "Showdown fortsetzen →"
                 : "Continue showdown →"
-              : round.id === "artery-confidence"
+              : isLastRound
                 ? language === "de"
                   ? "Endergebnis ansehen →"
                   : "See final results →"

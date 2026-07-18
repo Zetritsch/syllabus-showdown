@@ -138,7 +138,7 @@ button {
   width: 9px;
   height: 18px;
   border-radius: 3px;
-  animation: confetti-fall 2.2s ease-in infinite;
+  animation: confetti-fall 2.2s ease-in both;
   animation-delay: var(--delay, 0s);
   pointer-events: none;
 }
