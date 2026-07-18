@@ -16,7 +16,7 @@ export default function Home() {
           <span>SYLLABUS SHOWDOWN</span>
         </a>
         <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] text-white/60">
-          OpenAI Build Week
+          <Link href="/join">Join a game</Link>
         </span>
       </nav>
 
@@ -75,6 +75,8 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      <Link href="/join" className="fixed bottom-5 right-5 z-20 rounded-full border border-white/10 bg-[#181d3c]/95 px-5 py-3 text-sm font-black shadow-xl backdrop-blur sm:hidden">Join room</Link>
 
       <section className="relative z-10 border-t border-white/8 bg-black/10">
         <div className="mx-auto grid max-w-7xl gap-px px-6 py-16 md:grid-cols-3 lg:px-10">

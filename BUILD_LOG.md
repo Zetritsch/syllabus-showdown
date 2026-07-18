@@ -24,6 +24,8 @@ Codex helped narrow the scope, compare delivery architectures, define the techni
 - Kept the demo independent from OpenAI and Supabase so it remains reliable during judging; generated packs and realtime rooms can plug into the same model next.
 - Added a server-only GPT-5.6 Responses API route using Structured Outputs, prompt-injection boundaries, input limits, and a second runtime-validation pass.
 - Added an AI Game Studio that accepts source material, generates a custom pack, validates it in the browser, and launches it directly in the same playable engine.
+- Added room creation and join flows with shareable six-character codes.
+- Added Supabase Realtime Presence for lobby membership and Broadcast for synchronized game start, plus an explicit single-device fallback when realtime configuration is unavailable.
 
 ## Verification
 
