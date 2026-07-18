@@ -32,6 +32,8 @@ Codex helped narrow the scope, compare delivery architectures, define the techni
 - Replaced multiplayer demo scores with Realtime Presence scores, real participant names, answer-completion counts, and a dynamic final ranking.
 - Added state recovery: player IDs, scores, answered rounds, and host progress survive reloads in session storage.
 - Added a Realtime state-request/state-sync handshake so late joiners and reconnecting players receive the current validated pack and active round from the host.
+- Added source evidence to every validated round and surfaced it alongside answer explanations so judges can see that generated questions remain grounded in the uploaded material.
+- Added drag-and-drop and file selection for plain-text and Markdown study material with size, type, and length guardrails.
 
 ## Verification
 

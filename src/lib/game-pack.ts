@@ -5,6 +5,7 @@ const baseRound = z.object({
   title: z.string().min(1),
   concept: z.string().min(1),
   points: z.number().int().positive(),
+  evidence: z.string().min(1),
 });
 
 const sequenceRound = baseRound.extend({

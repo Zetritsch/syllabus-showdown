@@ -13,6 +13,7 @@ export const demoPack = validateGamePack({
       title: "Sequence Rush",
       concept: "Blood flow",
       points: 600,
+      evidence: "The right heart pumps oxygen-poor blood to the lungs; the left heart pumps oxygen-rich blood to the body.",
       prompt: "Put the stops in order, beginning when oxygen-poor blood enters the heart.",
       items: [
         { id: "lungs", label: "Lungs" },
@@ -29,6 +30,7 @@ export const demoPack = validateGamePack({
       title: "Connection Clash",
       concept: "Structure and function",
       points: 800,
+      evidence: "Arteries receive blood under higher pressure and have thicker, more muscular walls than veins.",
       prompt: "Which feature is most directly connected to an artery's thick muscular wall?",
       left: "Thick muscular wall",
       options: [
@@ -46,6 +48,7 @@ export const demoPack = validateGamePack({
       title: "Confidence Battle",
       concept: "Pressure vs. oxygenation",
       points: 1000,
+      evidence: "Arteries are defined by carrying blood away from the heart, not by oxygen content.",
       prompt: "Why do arteries usually have thicker walls than veins?",
       options: [
         { id: "pressure", label: "They carry blood at higher pressure" },
