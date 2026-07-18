@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
-import { demoPack } from "@/data/demo-pack";
+import { LanguageSwitcher } from "@/components/language-switcher";
+import { demoPack, demoPackDe } from "@/data/demo-pack";
 import { gamePackSchema, type GamePack, type GameRound } from "@/lib/game-pack";
+import { useLanguage } from "@/lib/i18n";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 
 type Phase = "lobby" | "question" | "result" | "remediation" | "podium";
@@ -26,7 +28,7 @@ type LivePlayer = {
 };
 
 export function ShowdownDemo({
-  pack = demoPack,
+  pack,
   roomCode,
   isHost = true,
   playerName = "You",
@@ -36,6 +38,8 @@ export function ShowdownDemo({
   isHost?: boolean;
   playerName?: string;
 }) {
+  const { language } = useLanguage();
+  const defaultPack = language === "de" ? demoPackDe : demoPack;
   const playerStorageKey = `showdown:player:${roomCode || "solo"}:${playerName}`;
   const [clientId] = useState(() => {
     if (typeof window === "undefined") return "server-player";
@@ -45,7 +49,7 @@ export function ShowdownDemo({
     sessionStorage.setItem(`${playerStorageKey}:id`, created);
     return created;
   });
-  const [activePack, setActivePack] = useState(pack);
+  const [activePack, setActivePack] = useState(pack ?? defaultPack);
   const [phase, setPhase] = useState<Phase>(roomCode ? "question" : "lobby");
   const [roundIndex, setRoundIndex] = useState(0);
   const [score, setScore] = useState(roomCode ? 0 : 1980);
@@ -74,6 +78,10 @@ export function ShowdownDemo({
   const channelRef = useRef<RealtimeChannel | null>(null);
   const gameStateRef = useRef({ roundIndex, phase, pack: activePack });
   const round = activePack.rounds[roundIndex];
+
+  useEffect(() => {
+    if (!pack && !roomCode) queueMicrotask(() => setActivePack(defaultPack));
+  }, [defaultPack, pack, roomCode]);
 
   useEffect(() => {
     gameStateRef.current = { roundIndex, phase, pack: activePack };
@@ -500,13 +508,16 @@ export function ShowdownDemo({
           <span className="hidden sm:inline">SYLLABUS SHOWDOWN</span>
         </Link>
         <div className="flex items-center gap-3">
+          <LanguageSwitcher compact />
           <span
             className={`rounded-full px-3 py-1.5 text-xs font-bold ${roomCode ? "bg-[#54d9ff]/10 text-[#9feaff]" : "bg-[#72f0c5]/10 text-[#72f0c5]"}`}
           >
             ●{" "}
             {roomCode
-              ? `${roomLive ? "ROOM" : "LINKING"} ${roomCode}`
-              : "LIVE DEMO"}
+              ? `${roomLive ? (language === "de" ? "RAUM" : "ROOM") : language === "de" ? "VERBINDE" : "LINKING"} ${roomCode}`
+              : language === "de"
+                ? "LIVE-DEMO"
+                : "LIVE DEMO"}
           </span>
           <span className="font-black text-[#ffd84d]">
             {score.toLocaleString()} pts
@@ -599,10 +610,13 @@ export function ShowdownDemo({
 }
 
 function Lobby({ pack, start }: { pack: GamePack; start: () => void }) {
+  const { language } = useLanguage();
   return (
     <section className="relative z-10 mx-auto max-w-5xl px-5 py-12 text-center sm:py-20">
       <p className="text-sm font-black uppercase tracking-[.2em] text-[#72f0c5]">
-        Room SS26 · 4 players ready
+        {language === "de"
+          ? "Raum SS26 · 4 Spieler bereit"
+          : "Room SS26 · 4 players ready"}
       </p>
       <h1 className="mt-4 text-4xl font-black tracking-[-.05em] sm:text-6xl">
         {pack.title}
@@ -623,7 +637,9 @@ function Lobby({ pack, start }: { pack: GamePack; start: () => void }) {
               {p.name[0]}
             </span>
             <p className="mt-3 font-bold">{p.name}</p>
-            <p className="text-xs text-[#72f0c5]">Ready</p>
+            <p className="text-xs text-[#72f0c5]">
+              {language === "de" ? "Bereit" : "Ready"}
+            </p>
           </div>
         ))}
       </div>
@@ -631,10 +647,12 @@ function Lobby({ pack, start }: { pack: GamePack; start: () => void }) {
         onClick={start}
         className="mt-10 rounded-2xl bg-[#ffd84d] px-9 py-4 text-lg font-black text-[#101329] shadow-[0_12px_40px_rgba(255,216,77,.2)] transition hover:-translate-y-0.5"
       >
-        Start the showdown →
+        {language === "de" ? "Showdown starten →" : "Start the showdown →"}
       </button>
       <p className="mt-4 text-sm text-white/35">
-        Interactive demo · about 2 minutes
+        {language === "de"
+          ? "Interaktive Demo · etwa 2 Minuten"
+          : "Interactive demo · about 2 minutes"}
       </p>
     </section>
   );
@@ -649,11 +667,13 @@ function RoundHeader({
   index: number;
   total: number;
 }) {
+  const { language } = useLanguage();
   return (
     <div className="mb-8 flex items-start justify-between gap-4">
       <div>
         <p className="text-xs font-black uppercase tracking-[.2em] text-[#8f78ff]">
-          Round {index + 1} of {total}
+          {language === "de" ? "Runde" : "Round"} {index + 1}{" "}
+          {language === "de" ? "von" : "of"} {total}
         </p>
         <h1 className="mt-1 text-2xl font-black sm:text-3xl">{round.title}</h1>
         <p className="mt-1 text-sm text-white/40">{round.concept}</p>
@@ -666,20 +686,31 @@ function RoundHeader({
 }
 
 function RoundCountdown({ round, value }: { round: GameRound; value: number }) {
-  const modes: Record<GameRound["type"], string> = {
-    sequence: "Build the correct order",
-    connection: "Connect the concepts",
-    sort: "Charge both reactors",
-    hotspot: "Find it on the source",
-    "visual-map": "Assemble the model",
-    confidence: "Answer and wager",
-  };
+  const { language } = useLanguage();
+  const modes: Record<GameRound["type"], string> =
+    language === "de"
+      ? {
+          sequence: "Baue die richtige Reihenfolge",
+          connection: "Verbinde die Konzepte",
+          sort: "Lade beide Reaktoren",
+          hotspot: "Finde die Stelle in der Quelle",
+          "visual-map": "Setze das Modell zusammen",
+          confidence: "Antworte und setze Vertrauen",
+        }
+      : {
+          sequence: "Build the correct order",
+          connection: "Connect the concepts",
+          sort: "Charge both reactors",
+          hotspot: "Find it on the source",
+          "visual-map": "Assemble the model",
+          confidence: "Answer and wager",
+        };
   return (
     <div className="relative grid min-h-[32rem] place-items-center overflow-hidden rounded-[1.75rem] border border-[#8f78ff]/25 bg-[radial-gradient(circle_at_center,rgba(143,120,255,.28),rgba(8,10,25,.95)_64%)] text-center">
       <div className="absolute inset-0 arena-grid opacity-40" />
       <div className="relative z-10 px-6">
         <p className="text-xs font-black uppercase tracking-[.25em] text-[#72f0c5]">
-          Next challenge
+          {language === "de" ? "Nächste Challenge" : "Next challenge"}
         </p>
         <h2 className="mt-3 text-3xl font-black tracking-[-.04em] sm:text-5xl">
           {round.title}
@@ -731,12 +762,15 @@ function Question(props: {
   submit: () => void;
 }) {
   const { round } = props;
+  const { language } = useLanguage();
   if (round.type === "sequence")
     return (
       <>
         <h2 className="text-xl font-bold leading-8">{round.prompt}</h2>
         <p className="mt-2 text-sm text-white/40">
-          Tap all cards in the correct order.
+          {language === "de"
+            ? "Tippe alle Karten in der richtigen Reihenfolge an."
+            : "Tap all cards in the correct order."}
         </p>
         <div className="mt-7 grid gap-3 sm:grid-cols-2">
           {round.items.map((item) => {
@@ -768,11 +802,16 @@ function Question(props: {
           {round.prompt}
         </h2>
         <p className="mt-2 text-sm text-white/40">
-          Tap an item and then a reactor — or drag it directly.
+          {language === "de"
+            ? "Tippe ein Element und dann einen Reaktor an – oder ziehe es direkt hinein."
+            : "Tap an item and then a reactor — or drag it directly."}
         </p>
         <div className="mt-6 rounded-2xl border border-white/8 bg-[#080a19]/45 p-4">
           <p className="text-xs font-black uppercase tracking-[.16em] text-white/35">
-            Unsorted energy cells · {unassigned.length} remaining
+            {language === "de"
+              ? "Unsortierte Energiezellen"
+              : "Unsorted energy cells"}{" "}
+            · {unassigned.length} {language === "de" ? "übrig" : "remaining"}
           </p>
           <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
             {unassigned.map((item) => (
@@ -826,7 +865,8 @@ function Question(props: {
                   <div>
                     <b className="block">{bucket.label}</b>
                     <span className="text-xs text-white/35">
-                      {assigned.length} cells loaded
+                      {assigned.length}{" "}
+                      {language === "de" ? "Zellen geladen" : "cells loaded"}
                     </span>
                   </div>
                 </div>
@@ -850,7 +890,9 @@ function Question(props: {
                   ))}
                   {!assigned.length && (
                     <p className="py-6 text-center text-xs text-white/25">
-                      Drop matching cells here
+                      {language === "de"
+                        ? "Passende Zellen hier ablegen"
+                        : "Drop matching cells here"}
                     </p>
                   )}
                 </div>
@@ -869,7 +911,9 @@ function Question(props: {
           {round.prompt}
         </h2>
         <p className="mt-2 text-sm text-white/40">
-          Inspect the original page and tap the exact region.
+          {language === "de"
+            ? "Untersuche die Originalseite und tippe auf den exakten Bereich."
+            : "Inspect the original page and tap the exact region."}
         </p>
         <div className="mt-6 rounded-[1.75rem] border border-[#ffd84d]/20 bg-[#080a19]/55 p-3 sm:p-5">
           <div className="mb-3 flex items-center justify-between gap-3">
@@ -877,7 +921,8 @@ function Question(props: {
               Hotspot Hunt
             </span>
             <span className="text-xs font-bold text-white/35">
-              Original PDF · page {round.pageNumber}
+              Original-PDF · {language === "de" ? "Seite" : "page"}{" "}
+              {round.pageNumber}
             </span>
           </div>
           {round.pageImageDataUrl ? (
@@ -900,7 +945,7 @@ function Question(props: {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={round.pageImageDataUrl}
-                alt={`Source PDF page ${round.pageNumber}`}
+                alt={`${language === "de" ? "PDF-Quellseite" : "Source PDF page"} ${round.pageNumber}`}
                 className="block h-auto w-full"
               />
               {props.hotspotPoint && (
@@ -918,14 +963,18 @@ function Question(props: {
             </button>
           ) : (
             <div className="grid min-h-72 place-items-center rounded-xl border border-dashed border-white/15 text-sm text-white/35">
-              Page preview unavailable
+              {language === "de"
+                ? "Seitenvorschau nicht verfügbar"
+                : "Page preview unavailable"}
             </div>
           )}
         </div>
         <p className="mt-3 text-center text-xs font-bold text-white/35">
           {props.hotspotPoint
-            ? `Target locked at ${props.hotspotPoint.x}% · ${props.hotspotPoint.y}%`
-            : "No marker placed yet"}
+            ? `${language === "de" ? "Ziel fixiert bei" : "Target locked at"} ${props.hotspotPoint.x}% · ${props.hotspotPoint.y}%`
+            : language === "de"
+              ? "Noch keine Markierung gesetzt"
+              : "No marker placed yet"}
         </p>
         <Submit onClick={props.submit} />
       </>
@@ -937,12 +986,14 @@ function Question(props: {
           {round.prompt}
         </h2>
         <p className="mt-2 text-sm text-white/40">
-          Select a label, then place it into the correct zone.
+          {language === "de"
+            ? "Wähle ein Element und platziere es in der richtigen Zone."
+            : "Select a label, then place it into the correct zone."}
         </p>
         <div className="mt-6 overflow-hidden rounded-[1.75rem] border border-[#54d9ff]/20 bg-[radial-gradient(circle_at_center,rgba(84,217,255,.12),rgba(17,21,45,.9)_62%)] p-3 sm:p-5">
           <div className="flex items-center justify-between px-1 pb-3">
             <span className="text-xs font-black uppercase tracking-[.16em] text-[#9feaff]">
-              Visual Map Lab
+              {language === "de" ? "Visuelles Modell-Labor" : "Visual Map Lab"}
             </span>
             <span className="text-xs font-bold text-white/35">
               {round.sceneLabel}
@@ -1054,7 +1105,9 @@ function Question(props: {
           {round.prompt}
         </h2>
         <p className="mt-2 text-sm text-white/40">
-          Choose a concept on the left, then connect its match on the right.
+          {language === "de"
+            ? "Wähle links ein Konzept und verbinde es mit dem passenden Element rechts."
+            : "Choose a concept on the left, then connect its match on the right."}
         </p>
         <div className="mt-7 grid grid-cols-[1fr_auto_1fr] gap-2 sm:gap-4">
           <div className="space-y-3">
@@ -1124,7 +1177,8 @@ function Question(props: {
           </div>
         </div>
         <p className="mt-4 text-center text-xs font-bold text-white/35">
-          {props.connections.length} / {round.leftItems.length} links built
+          {props.connections.length} / {round.leftItems.length}{" "}
+          {language === "de" ? "Verbindungen erstellt" : "links built"}
         </p>
         <Submit onClick={props.submit} />
       </>
@@ -1152,7 +1206,9 @@ function Question(props: {
       {round.type === "confidence" && (
         <div className="mt-7">
           <p className="mb-3 text-sm font-bold text-white/55">
-            How confident are you? Higher confidence = higher stakes.
+            {language === "de"
+              ? "Wie sicher bist du? Mehr Sicherheit bedeutet mehr Risiko."
+              : "How confident are you? Higher confidence = higher stakes."}
           </p>
           <div className="grid grid-cols-3 gap-2">
             {[1, 2, 3].map((n) => (
@@ -1161,7 +1217,11 @@ function Question(props: {
                 onClick={() => props.setConfidence(n)}
                 className={`rounded-xl border px-2 py-3 text-sm font-bold ${props.confidence === n ? "border-[#ff6fae] bg-[#ff6fae]/12 text-[#ff9bc6]" : "border-white/10 text-white/45"}`}
               >
-                {["Not sure", "Pretty sure", "Locked in"][n - 1]}
+                {
+                  (language === "de"
+                    ? ["Unsicher", "Ziemlich sicher", "Absolut sicher"]
+                    : ["Not sure", "Pretty sure", "Locked in"])[n - 1]
+                }
               </button>
             ))}
           </div>
@@ -1173,12 +1233,13 @@ function Question(props: {
 }
 
 function Submit({ onClick }: { onClick: () => void }) {
+  const { language } = useLanguage();
   return (
     <button
       onClick={onClick}
       className="mt-7 w-full rounded-2xl bg-[#ffd84d] px-6 py-4 font-black text-[#101329] transition hover:bg-[#ffe374]"
     >
-      Lock in answer
+      {language === "de" ? "Antwort einloggen" : "Lock in answer"}
     </button>
   );
 }
@@ -1207,7 +1268,6 @@ function VisualCanvasBackdrop({
           r="30"
           fill="url(#bodyGlow)"
           stroke="#78e3ff"
-          strokeWidth="2"
         />
         <path
           d="M112 88 Q150 72 188 88 L205 220 Q185 255 174 275 L177 378 L143 378 L150 270 L123 378 L91 378 L118 260 Q98 235 95 220 Z"
@@ -1327,48 +1387,72 @@ function Result({
   responseCount?: number;
   playerCount?: number;
 }) {
+  const { language } = useLanguage();
   const adaptive = round.type === "confidence" && !correct && confidence === 3;
   return (
     <div className="py-4">
       <div
         className={`inline-flex rounded-full px-4 py-2 text-sm font-black ${correct ? "bg-[#72f0c5]/12 text-[#72f0c5]" : "bg-[#ff6fae]/12 text-[#ff8fbd]"}`}
       >
-        {correct ? "✓ Correct!" : "Not quite"}
+        {correct
+          ? language === "de"
+            ? "✓ Richtig!"
+            : "✓ Correct!"
+          : language === "de"
+            ? "Noch nicht ganz"
+            : "Not quite"}
       </div>
       <h2 className="mt-5 text-3xl font-black">
         {correct
-          ? `+${Math.round(round.points * (round.type === "confidence" ? confidence / 3 : 0.7))} points`
+          ? `+${Math.round(round.points * (round.type === "confidence" ? confidence / 3 : 0.7))} ${language === "de" ? "Punkte" : "points"}`
           : adaptive
-            ? "Confidence detected."
-            : "Learn it, then steal the next one."}
+            ? language === "de"
+              ? "Hohe Sicherheit erkannt."
+              : "Confidence detected."
+            : language === "de"
+              ? "Lerne daraus und hol dir die nächste Runde."
+              : "Learn it, then steal the next one."}
       </h2>
       <p className="mt-4 max-w-2xl text-lg leading-8 text-white/62">
         {round.explanation}
       </p>
       <div className="mt-5 rounded-xl border border-[#54d9ff]/20 bg-[#54d9ff]/7 p-4">
         <p className="text-xs font-black uppercase tracking-[.16em] text-[#9feaff]">
-          Grounded in your source
+          {language === "de"
+            ? "Durch deine Quelle belegt"
+            : "Grounded in your source"}
         </p>
         <p className="mt-2 text-sm leading-6 text-white/55">{round.evidence}</p>
       </div>
       {adaptive && (
         <div className="mt-6 rounded-2xl border border-[#ff6fae]/25 bg-[#ff6fae]/8 p-5">
-          <p className="font-black text-[#ff9bc6]">⚡ Misconception detected</p>
+          <p className="font-black text-[#ff9bc6]">
+            ⚡{" "}
+            {language === "de"
+              ? "Fehlvorstellung erkannt"
+              : "Misconception detected"}
+          </p>
           <p className="mt-2 text-sm leading-6 text-white/55">
-            High confidence in this answer reveals a concept worth revisiting in
-            your learning recap.
+            {language === "de"
+              ? "Die hohe Sicherheit bei dieser Antwort zeigt ein Konzept, das in deinem Lernrückblick erneut aufgegriffen wird."
+              : "High confidence in this answer reveals a concept worth revisiting in your learning recap."}
           </p>
         </div>
       )}
       {responseCount !== undefined && (
         <p className="mt-6 text-sm font-bold text-[#9feaff]">
-          {responseCount} of {playerCount} players locked in
+          {responseCount} {language === "de" ? "von" : "of"} {playerCount}{" "}
+          {language === "de"
+            ? "Spielern haben geantwortet"
+            : "players locked in"}
         </p>
       )}
       {waiting ? (
         <div className="mt-8 inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[.05] px-6 py-4 text-white/55">
           <span className="h-2 w-2 animate-pulse rounded-full bg-[#72f0c5]" />
-          Waiting for host to reveal the next round…
+          {language === "de"
+            ? "Warte, bis der Host die nächste Runde startet…"
+            : "Waiting for host to reveal the next round…"}
         </div>
       ) : (
         <button
@@ -1376,10 +1460,16 @@ function Result({
           className="mt-8 rounded-2xl bg-[#ffd84d] px-7 py-4 font-black text-[#101329]"
         >
           {adaptive
-            ? "Continue showdown →"
+            ? language === "de"
+              ? "Showdown fortsetzen →"
+              : "Continue showdown →"
             : round.id === "artery-confidence"
-              ? "See final results →"
-              : "Next round →"}
+              ? language === "de"
+                ? "Endergebnis ansehen →"
+                : "See final results →"
+              : language === "de"
+                ? "Nächste Runde →"
+                : "Next round →"}
         </button>
       )}
     </div>
@@ -1397,10 +1487,13 @@ function Remediation({
   choose: (id: string) => void;
   done: () => void;
 }) {
+  const { language } = useLanguage();
   return (
     <div>
       <span className="rounded-full bg-[#ff6fae]/12 px-3 py-1.5 text-xs font-black text-[#ff9bc6]">
-        PERSONALIZED COMEBACK
+        {language === "de"
+          ? "PERSONALISIERTES COMEBACK"
+          : "PERSONALIZED COMEBACK"}
       </span>
       <h2 className="mt-5 text-2xl font-black leading-9">
         {round.remediation.prompt}
@@ -1422,7 +1515,9 @@ function Remediation({
         onClick={done}
         className="mt-7 w-full rounded-2xl bg-[#72f0c5] px-6 py-4 font-black text-[#101329] disabled:cursor-not-allowed disabled:opacity-30"
       >
-        Finish comeback +350
+        {language === "de"
+          ? "Comeback abschließen +350"
+          : "Finish comeback +350"}
       </button>
     </div>
   );
@@ -1437,6 +1532,7 @@ function Scoreboard({
   livePlayers?: LivePlayer[];
   playerName: string;
 }) {
+  const { language } = useLanguage();
   const colors = ["#ffd84d", "#ff6fae", "#54d9ff", "#9d7cff", "#72f0c5"];
   const live: Array<{
     id: string;
@@ -1461,7 +1557,7 @@ function Scoreboard({
   return (
     <aside className="h-fit rounded-[1.5rem] border border-white/10 bg-white/[.045] p-5">
       <p className="text-xs font-black uppercase tracking-[.18em] text-white/35">
-        Live standings
+        {language === "de" ? "Live-Rangliste" : "Live standings"}
       </p>
       <div className="mt-4 space-y-3">
         {live.map((p, i) => (
@@ -1496,6 +1592,7 @@ function Podium({
   livePlayers?: LivePlayer[];
   playerName: string;
 }) {
+  const { language, t } = useLanguage();
   const ranking = (
     livePlayers?.length
       ? livePlayers
@@ -1514,10 +1611,10 @@ function Podium({
   return (
     <main className="relative z-10 min-h-screen bg-[#080a19] px-5 py-16 text-center text-white">
       <p className="text-sm font-black uppercase tracking-[.2em] text-[#ffd84d]">
-        Showdown complete
+        {language === "de" ? "Showdown beendet" : "Showdown complete"}
       </p>
       <h1 className="mt-4 text-5xl font-black tracking-[-.05em] sm:text-7xl">
-        Final standings.
+        {language === "de" ? "Endstand." : "Final standings."}
       </h1>
       <div className="mx-auto mt-12 max-w-xl space-y-3">
         {ranking.map((player, index) => (
@@ -1530,16 +1627,20 @@ function Podium({
             </span>
             <b className="flex-1">{player.name}</b>
             <span className="font-black">
-              {player.score.toLocaleString()} pts
+              {player.score.toLocaleString()}{" "}
+              {language === "de" ? "Pkt." : "pts"}
             </span>
           </div>
         ))}
       </div>
       <div className="mx-auto mt-10 max-w-xl rounded-2xl border border-[#72f0c5]/20 bg-[#72f0c5]/8 p-6 text-left">
-        <p className="font-black text-[#72f0c5]">Learning recap</p>
+        <p className="font-black text-[#72f0c5]">
+          {language === "de" ? "Lernrückblick" : "Learning recap"}
+        </p>
         <p className="mt-2 leading-7 text-white/60">
-          The showdown turned answers and confidence into an instant view of
-          strengths and misconceptions.
+          {language === "de"
+            ? "Der Showdown macht aus Antworten und Sicherheit sofort sichtbar, wo Stärken und Fehlvorstellungen liegen."
+            : "The showdown turned answers and confidence into an instant view of strengths and misconceptions."}
         </p>
       </div>
       <div className="mt-8 flex justify-center gap-3">
@@ -1547,13 +1648,13 @@ function Podium({
           onClick={reset}
           className="rounded-2xl bg-[#ffd84d] px-7 py-4 font-black text-[#101329]"
         >
-          Play again
+          {language === "de" ? "Nochmal spielen" : "Play again"}
         </button>
         <Link
           href="/"
           className="rounded-2xl border border-white/10 px-7 py-4 font-bold"
         >
-          Back home
+          {t("backHome")}
         </Link>
       </div>
     </main>

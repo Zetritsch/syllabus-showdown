@@ -173,3 +173,132 @@ export const demoPack = validateGamePack({
     },
   ],
 });
+
+export const demoPackDe = validateGamePack({
+  ...demoPack,
+  title: "Herz-Kreislauf-Showdown",
+  subject: "Humanbiologie",
+  sourceLabel: "Kapitel 8 · Das Herz-Kreislauf-System",
+  learningGoals: [
+    "Den Blutfluss durch das Herz verfolgen",
+    "Gefäßbau und Funktion verbinden",
+    "Druck und Sauerstoffgehalt unterscheiden",
+  ],
+  rounds: demoPack.rounds.map((round) => {
+    switch (round.type) {
+      case "sequence":
+        return {
+          ...round,
+          title: "Ablauf-Rush",
+          concept: "Blutkreislauf",
+          evidence:
+            "Die rechte Herzhälfte pumpt sauerstoffarmes Blut zur Lunge; die linke pumpt sauerstoffreiches Blut in den Körper.",
+          prompt:
+            "Bringe die Stationen in die richtige Reihenfolge. Starte dort, wo sauerstoffarmes Blut ins Herz gelangt.",
+          items: [
+            { id: "lungs", label: "Lunge" },
+            { id: "right", label: "Rechte Herzhälfte" },
+            { id: "body", label: "Körpergewebe" },
+            { id: "left", label: "Linke Herzhälfte" },
+          ],
+          explanation:
+            "Das rechte Herz schickt sauerstoffarmes Blut zur Lunge. Anschließend pumpt das linke Herz das sauerstoffreiche Blut in den Körper.",
+        };
+      case "sort":
+        return {
+          ...round,
+          title: "Sortier-Reaktor",
+          concept: "Arterien und Venen",
+          evidence:
+            "Arterien führen Blut unter höherem Druck vom Herzen weg und besitzen dickere Wände; Venen führen es mit Klappen zurück.",
+          prompt:
+            "Lade beide Reaktoren, indem du jedes Merkmal richtig zuordnest.",
+          buckets: [
+            { id: "artery", label: "Arterien-Reaktor", glyph: "🔴" },
+            { id: "vein", label: "Venen-Reaktor", glyph: "🔵" },
+          ],
+          items: [
+            { id: "away", label: "Führt Blut vom Herzen weg" },
+            { id: "toward", label: "Führt Blut zum Herzen zurück" },
+            { id: "thick", label: "Dickere Muskelwand" },
+            { id: "thin", label: "Dünnere Wand" },
+            { id: "pressure", label: "Höherer Druck" },
+            { id: "valves", label: "Venenklappen" },
+          ],
+          explanation:
+            "Arterien halten dem hohen Druck vom Herzen stand; Venen unterstützen den Rückfluss mit Klappen.",
+        };
+      case "hotspot":
+        return {
+          ...round,
+          title: "Hotspot-Jagd",
+          concept: "Gasaustausch",
+          evidence:
+            "In der Lunge nimmt das Blut Sauerstoff auf, bevor es zur linken Herzhälfte zurückkehrt.",
+          prompt: "Tippe auf das Organ, in dem Sauerstoff ins Blut gelangt.",
+          target: { ...round.target, label: "Lunge" },
+          explanation:
+            "Der Gasaustausch findet in der Lunge statt: Sauerstoff gelangt ins Blut und Kohlendioxid verlässt es.",
+        };
+      case "visual-map":
+        return {
+          ...round,
+          title: "Anatomie-Montage",
+          concept: "Organe richtig platzieren",
+          evidence:
+            "Die Lunge liegt im Brustkorb, das Herz zwischen den Lungenflügeln und Leber sowie Magen unterhalb des Zwerchfells.",
+          prompt: "Ziehe jedes Organ an seine anatomisch richtige Position.",
+          sceneLabel: "Interaktives Körpermodell",
+          labels: [
+            { id: "lungs", label: "Lunge", glyph: "🫁" },
+            { id: "heart", label: "Herz", glyph: "❤️" },
+            { id: "liver", label: "Leber", glyph: "🟤" },
+            { id: "stomach", label: "Magen", glyph: "🥣" },
+          ],
+          zones: [
+            { ...round.zones[0], hint: "Paariges Organ im Brustkorb" },
+            { ...round.zones[1], hint: "Zwischen den Lungenflügeln" },
+            { ...round.zones[2], hint: "Rechter Oberbauch" },
+            { ...round.zones[3], hint: "Linker Oberbauch" },
+          ],
+          explanation:
+            "Lunge und Herz liegen im Brustkorb; Leber und Magen befinden sich darunter auf gegenüberliegenden Seiten des Oberbauchs.",
+        };
+      case "confidence":
+        return {
+          ...round,
+          title: "Sicherheits-Duell",
+          concept: "Druck oder Sauerstoff?",
+          evidence:
+            "Arterien sind dadurch definiert, dass sie Blut vom Herzen wegführen – nicht durch den Sauerstoffgehalt.",
+          prompt: "Warum haben Arterien meist dickere Wände als Venen?",
+          options: [
+            {
+              id: "pressure",
+              label: "Sie transportieren Blut unter höherem Druck",
+            },
+            { id: "oxygen", label: "Sie transportieren immer mehr Sauerstoff" },
+            { id: "speed", label: "Das Herz schlägt in ihrer Nähe schneller" },
+            { id: "volume", label: "Sie transportieren weniger Blut" },
+          ],
+          misconception:
+            "Arterie bedeutet nicht sauerstoffreich. Lungenarterien transportieren sauerstoffarmes Blut.",
+          remediation: {
+            ...round.remediation,
+            prompt:
+              "Comeback: Welches Gefäß führt sauerstoffarmes Blut vom Herzen weg?",
+            options: [
+              { id: "pulmonary-artery", label: "Lungenarterie" },
+              { id: "pulmonary-vein", label: "Lungenvene" },
+            ],
+            explanation:
+              "Gefäßnamen beschreiben die Richtung: Arterien führen vom Herzen weg, Venen zu ihm zurück.",
+          },
+          explanation:
+            "Die Wandstärke hängt vom Druck ab, nicht vom Sauerstoffgehalt. Arterien fangen die Druckwelle des Herzschlags ab.",
+        };
+      default:
+        return round;
+    }
+  }),
+});

@@ -2,9 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import QRCode from "qrcode";
+import { LanguageSwitcher } from "@/components/language-switcher";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
-import { demoPack } from "@/data/demo-pack";
+import { demoPack, demoPackDe } from "@/data/demo-pack";
 import { gamePackSchema, type GamePack } from "@/lib/game-pack";
+import { useLanguage } from "@/lib/i18n";
 
 type Player = {
   id: string;
@@ -24,6 +27,8 @@ export function RoomLobby({
   isHost: boolean;
 }) {
   const router = useRouter();
+  const { language } = useLanguage();
+  const fallbackPack = language === "de" ? demoPackDe : demoPack;
   const realtimeEnabled = Boolean(getSupabaseBrowserClient());
   const clientId = useMemo(() => crypto.randomUUID(), []);
   const self = useMemo<Player>(
@@ -40,17 +45,27 @@ export function RoomLobby({
     realtimeEnabled ? "connecting" : "demo",
   );
   const [copied, setCopied] = useState(false);
+  const [inviteQr, setInviteQr] = useState("");
   const [roomPack] = useState<GamePack>(() => {
-    if (typeof window === "undefined") return demoPack;
+    if (typeof window === "undefined") return fallbackPack;
     const stored = sessionStorage.getItem(`showdown:pack:${code}`);
-    if (!stored) return demoPack;
+    if (!stored) return fallbackPack;
     try {
       const parsed = gamePackSchema.safeParse(JSON.parse(stored));
-      return parsed.success ? parsed.data : demoPack;
+      return parsed.success ? parsed.data : fallbackPack;
     } catch {
-      return demoPack;
+      return fallbackPack;
     }
   });
+
+  useEffect(() => {
+    const inviteUrl = `${location.origin}/room/${code}?name=Player`;
+    void QRCode.toDataURL(inviteUrl, {
+      width: 240,
+      margin: 2,
+      color: { dark: "#101329", light: "#ffffff" },
+    }).then(setInviteQr);
+  }, [code]);
 
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
@@ -163,19 +178,26 @@ export function RoomLobby({
       <div className="relative z-10 mx-auto max-w-5xl">
         <header className="flex items-center justify-between">
           <b>SYLLABUS SHOWDOWN</b>
-          <span
-            className={`rounded-full px-3 py-1.5 text-xs font-black ${status === "live" ? "bg-[#72f0c5]/10 text-[#72f0c5]" : "bg-[#ffd84d]/10 text-[#ffd84d]"}`}
-          >
-            {status === "live"
-              ? "● REALTIME LIVE"
-              : status === "connecting"
-                ? "CONNECTING…"
-                : "DEMO MODE"}
-          </span>
+          <div className="flex items-center gap-2">
+            <LanguageSwitcher compact />
+            <span
+              className={`hidden rounded-full px-3 py-1.5 text-xs font-black sm:inline-flex ${status === "live" ? "bg-[#72f0c5]/10 text-[#72f0c5]" : "bg-[#ffd84d]/10 text-[#ffd84d]"}`}
+            >
+              {status === "live"
+                ? "● REALTIME LIVE"
+                : status === "connecting"
+                  ? language === "de"
+                    ? "VERBINDE…"
+                    : "CONNECTING…"
+                  : language === "de"
+                    ? "DEMO-MODUS"
+                    : "DEMO MODE"}
+            </span>
+          </div>
         </header>
         <section className="py-12 text-center">
           <p className="text-sm font-black uppercase tracking-[.2em] text-[#8f78ff]">
-            Room code
+            {language === "de" ? "Raumcode" : "Room code"}
           </p>
           <button
             onClick={copyInvite}
@@ -184,10 +206,36 @@ export function RoomLobby({
             {code}
           </button>
           <p className="mt-3 text-sm text-white/35">
-            {copied ? "Invite link copied!" : "Tap code to copy invite link"}
+            {copied
+              ? language === "de"
+                ? "Einladungslink kopiert!"
+                : "Invite link copied!"
+              : language === "de"
+                ? "Code antippen, um den Link zu kopieren"
+                : "Tap code to copy invite link"}
+          </p>
+          {inviteQr && (
+            <div className="mx-auto mt-6 w-fit rounded-2xl bg-white p-3 shadow-[0_0_50px_rgba(84,217,255,.18)]">
+              {/* Generated locally from the current room URL. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={inviteQr}
+                alt={
+                  language === "de" ? "QR-Code zum Raum" : "Room invite QR code"
+                }
+                className="h-40 w-40 sm:h-48 sm:w-48"
+              />
+            </div>
+          )}
+          <p className="mt-3 text-xs font-bold text-[#9feaff]">
+            {language === "de"
+              ? "Mit dem Smartphone scannen und sofort beitreten"
+              : "Scan with a phone to join instantly"}
           </p>
           <h1 className="mt-12 text-3xl font-black sm:text-5xl">
-            Players are entering the arena.
+            {language === "de"
+              ? "Die Spieler betreten die Arena."
+              : "Players are entering the arena."}
           </h1>
           <div className="mx-auto mt-8 grid max-w-3xl grid-cols-2 gap-3 sm:grid-cols-4">
             {players.map((player, index) => (
@@ -203,15 +251,20 @@ export function RoomLobby({
                 </span>
                 <p className="mt-3 truncate font-bold">{player.name}</p>
                 <p className="text-xs text-white/35">
-                  {player.role === "host" ? "Host" : "Ready"}
+                  {player.role === "host"
+                    ? "Host"
+                    : language === "de"
+                      ? "Bereit"
+                      : "Ready"}
                 </p>
               </div>
             ))}
           </div>
           {status === "demo" && (
             <p className="mx-auto mt-6 max-w-lg rounded-xl border border-[#ffd84d]/20 bg-[#ffd84d]/8 p-4 text-sm text-[#ffe88a]">
-              Realtime variables are not available in this deployment yet. The
-              lobby remains usable as a single-device demo.
+              {language === "de"
+                ? "Realtime ist in diesem Deployment nicht verfügbar. Die Lobby bleibt als Einzelgeräte-Demo nutzbar."
+                : "Realtime variables are not available in this deployment yet. The lobby remains usable as a single-device demo."}
             </p>
           )}
           {isHost ? (
@@ -219,12 +272,16 @@ export function RoomLobby({
               onClick={start}
               className="mt-10 rounded-2xl bg-[#ffd84d] px-9 py-4 text-lg font-black text-[#101329]"
             >
-              Start for everyone →
+              {language === "de"
+                ? "Für alle starten →"
+                : "Start for everyone →"}
             </button>
           ) : (
             <div className="mt-10 inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[.05] px-6 py-4 text-white/55">
               <span className="h-2 w-2 animate-pulse rounded-full bg-[#72f0c5]" />
-              Waiting for the host…
+              {language === "de"
+                ? "Warte auf den Host…"
+                : "Waiting for the host…"}
             </div>
           )}
         </section>

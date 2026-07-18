@@ -56,3 +56,5 @@ Codex helped narrow the scope, compare delivery architectures, define the techni
 - Switched generation to the cost-sensitive GPT-5.6 Luna tier, set PDF vision detail to low, reduced the visual page cap to six, and added token-based per-generation cost estimates using current model rates.
 - Extended Visual Map Lab with adaptive body, cell, cycle, and system canvas templates so generated play reconstructs a learning model instead of merely reproducing a source page.
 - Added a synchronized three-second challenge reveal between rounds so host-led multiplayer feels like a live game show instead of a sequence of forms.
+- Added persistent German/English language selection across the landing page, studio, lobby, and game flow; generated packs now explicitly follow the selected output language.
+- Added a locally generated QR invite to every multiplayer lobby so players can join from their phones without typing the room code.

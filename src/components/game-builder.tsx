@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { LanguageSwitcher } from "@/components/language-switcher";
 import { ShowdownDemo } from "@/components/showdown-demo";
 import { gamePackSchema, type GamePack } from "@/lib/game-pack";
+import { useLanguage } from "@/lib/i18n";
 
 const sample = `The water cycle describes how water moves between Earth's surface and atmosphere. Evaporation occurs when liquid water gains energy and becomes water vapor. Plants also release water vapor through transpiration. As moist air rises and cools, water vapor condenses into tiny droplets that form clouds. When droplets grow heavy enough, water returns to Earth as precipitation such as rain or snow. Water then collects in oceans, lakes, rivers, soil, and groundwater before the cycle repeats. The Sun supplies most of the energy that drives evaporation. Condensation does not mean clouds are made of invisible gas; clouds contain tiny liquid droplets or ice crystals.`;
 
@@ -16,6 +18,7 @@ type GenerationUsage = {
 
 export function GameBuilder() {
   const router = useRouter();
+  const { language, t } = useLanguage();
   const [material, setMaterial] = useState(sample);
   const [pack, setPack] = useState<GamePack | null>(null);
   const [error, setError] = useState("");
@@ -117,9 +120,15 @@ export function GameBuilder() {
       <main className="min-h-screen bg-[#080a19] px-5 py-10 text-white">
         <div className="arena-grid" />
         <section className="relative z-10 mx-auto max-w-3xl rounded-[2rem] border border-white/10 bg-[#11152d]/95 p-6 sm:p-10">
-          <p className="text-sm font-black uppercase tracking-[.2em] text-[#72f0c5]">
-            ✓ Validated game pack
-          </p>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm font-black uppercase tracking-[.2em] text-[#72f0c5]">
+              ✓{" "}
+              {language === "de"
+                ? "Validiertes Game Pack"
+                : "Validated game pack"}
+            </p>
+            <LanguageSwitcher compact />
+          </div>
           <h1 className="mt-3 text-4xl font-black tracking-[-.04em] sm:text-5xl">
             {pack.title}
           </h1>
@@ -129,8 +138,10 @@ export function GameBuilder() {
           {generationUsage && (
             <div className="mt-5 flex flex-wrap gap-2 text-xs font-bold">
               <span className="rounded-full bg-[#72f0c5]/10 px-3 py-2 text-[#a4f7dc]">
-                Estimated API cost: $
-                {generationUsage.estimatedCostUsd.toFixed(4)}
+                {language === "de"
+                  ? "Geschätzte API-Kosten"
+                  : "Estimated API cost"}
+                : ${generationUsage.estimatedCostUsd.toFixed(4)}
               </span>
               <span className="rounded-full bg-white/[.06] px-3 py-2 text-white/45">
                 {generationUsage.inputTokens.toLocaleString()} in ·{" "}
@@ -145,7 +156,7 @@ export function GameBuilder() {
                 className="rounded-2xl border border-white/10 bg-white/[.05] p-5"
               >
                 <span className="text-xs font-black text-[#8f78ff]">
-                  ROUND {index + 1}
+                  {language === "de" ? "RUNDE" : "ROUND"} {index + 1}
                 </span>
                 <h2 className="mt-2 font-black">{round.title}</h2>
                 <p className="mt-1 text-sm text-white/40">{round.type}</p>
@@ -153,7 +164,7 @@ export function GameBuilder() {
             ))}
           </div>
           <label className="mt-8 block text-sm font-bold text-white/60">
-            Your host name
+            {language === "de" ? "Dein Host-Name" : "Your host name"}
           </label>
           <input
             value={hostName}
@@ -166,20 +177,25 @@ export function GameBuilder() {
               onClick={hostMultiplayer}
               className="rounded-2xl bg-[#ffd84d] px-6 py-4 font-black text-[#101329]"
             >
-              Host multiplayer →
+              {language === "de"
+                ? "Multiplayer hosten →"
+                : "Host multiplayer →"}
             </button>
             <button
               onClick={() => setSolo(true)}
               className="rounded-2xl border border-white/12 bg-white/[.05] px-6 py-4 font-bold"
             >
-              Play solo
+              {language === "de" ? "Solo spielen" : "Play solo"}
             </button>
           </div>
           <button
             onClick={() => setPack(null)}
             className="mt-5 text-sm font-bold text-white/40 hover:text-white"
           >
-            ← Generate another pack
+            ←{" "}
+            {language === "de"
+              ? "Weiteres Pack generieren"
+              : "Generate another pack"}
           </button>
         </section>
       </main>
@@ -197,13 +213,14 @@ export function GameBuilder() {
             body: (() => {
               const formData = new FormData();
               formData.set("file", sourcePdf);
+              formData.set("language", language);
               return formData;
             })(),
           })
         : await fetch("/api/generate", {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ material }),
+            body: JSON.stringify({ material, language }),
           });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Generation failed.");
@@ -220,23 +237,29 @@ export function GameBuilder() {
     <main className="min-h-screen bg-[#080a19] px-5 py-8 text-white">
       <div className="arena-grid" />
       <div className="relative z-10 mx-auto max-w-4xl">
-        <Link
-          href="/"
-          className="text-sm font-bold text-white/50 hover:text-white"
-        >
-          ← Back home
-        </Link>
+        <div className="flex items-center justify-between">
+          <Link
+            href="/"
+            className="text-sm font-bold text-white/50 hover:text-white"
+          >
+            ← {t("backHome")}
+          </Link>
+          <LanguageSwitcher />
+        </div>
         <div className="mt-10 grid gap-8 lg:grid-cols-[1fr_260px]">
           <section>
             <p className="text-sm font-black uppercase tracking-[.2em] text-[#72f0c5]">
-              AI game studio
+              {language === "de" ? "KI-GAME-STUDIO" : "AI GAME STUDIO"}
             </p>
             <h1 className="mt-3 text-4xl font-black tracking-[-.04em] sm:text-5xl">
-              Turn your material into a showdown.
+              {language === "de"
+                ? "Verwandle deinen Lernstoff in einen Showdown."
+                : "Turn your material into a showdown."}
             </h1>
             <p className="mt-4 leading-7 text-white/55">
-              Paste a focused section of notes or a study guide. GPT-5.6 creates
-              three validated, source-grounded rounds.
+              {language === "de"
+                ? "Füge einen relevanten Abschnitt deiner Notizen ein oder lade eine PDF hoch. GPT-5.6 erstellt daraus fünf validierte, quellenbasierte Runden."
+                : "Paste focused notes or upload a PDF. GPT-5.6 creates five validated, source-grounded rounds."}
             </p>
             <label
               onDragOver={(event) => event.preventDefault()}
@@ -249,15 +272,25 @@ export function GameBuilder() {
               <span>
                 <b className="block text-sm">
                   {extracting
-                    ? "Reading your source…"
-                    : "Drop a syllabus here or choose a file"}
+                    ? language === "de"
+                      ? "Quelle wird gelesen…"
+                      : "Reading your source…"
+                    : language === "de"
+                      ? "Lernmaterial hier ablegen oder Datei auswählen"
+                      : "Drop a syllabus here or choose a file"}
                 </b>
                 <span className="text-xs text-white/40">
                   PDF up to 4 MB · .txt or .md up to 250 KB
                 </span>
               </span>
               <span className="rounded-xl bg-white/10 px-3 py-2 text-sm font-black">
-                {extracting ? "Extracting…" : "Upload"}
+                {extracting
+                  ? language === "de"
+                    ? "Lese…"
+                    : "Extracting…"
+                  : language === "de"
+                    ? "Hochladen"
+                    : "Upload"}
               </span>
               <input
                 type="file"
@@ -269,7 +302,7 @@ export function GameBuilder() {
             </label>
             {sourceFileName && (
               <p className="mt-2 text-xs font-bold text-[#72f0c5]">
-                ✓ Loaded {sourceFileName}
+                ✓ {language === "de" ? "Geladen" : "Loaded"} {sourceFileName}
                 {sourceDetails ? ` · ${sourceDetails}` : ""}
               </p>
             )}
@@ -282,8 +315,12 @@ export function GameBuilder() {
               maxLength={12000}
               placeholder={
                 sourcePdf
-                  ? "This PDF has little or no selectable text. Visual AI will read the rendered pages directly."
-                  : "Paste focused learning material here…"
+                  ? language === "de"
+                    ? "Diese PDF enthält kaum auswählbaren Text. Die visuelle KI liest die gerenderten Seiten direkt."
+                    : "This PDF has little or no selectable text. Visual AI will read the rendered pages directly."
+                  : language === "de"
+                    ? "Relevanten Lernstoff hier einfügen…"
+                    : "Paste focused learning material here…"
               }
               className="mt-4 min-h-72 w-full resize-y rounded-2xl border border-white/12 bg-white/[.055] p-5 leading-7 outline-none transition focus:border-[#8f78ff]"
               aria-label="Study material"
@@ -291,8 +328,12 @@ export function GameBuilder() {
             <div className="mt-2 flex justify-between text-xs text-white/35">
               <span>
                 {sourcePdf
-                  ? "Visual PDF mode · scans and diagrams supported"
-                  : "Minimum 200 characters"}
+                  ? language === "de"
+                    ? "Visueller PDF-Modus · Scans und Schaubilder unterstützt"
+                    : "Visual PDF mode · scans and diagrams supported"
+                  : language === "de"
+                    ? "Mindestens 200 Zeichen"
+                    : "Minimum 200 characters"}
               </span>
               <span>{material.length.toLocaleString()} / 12,000</span>
             </div>
@@ -312,21 +353,33 @@ export function GameBuilder() {
             >
               {loading
                 ? sourcePdf
-                  ? "Reading pages and building visuals…"
-                  : "Designing your rounds…"
+                  ? language === "de"
+                    ? "Lese Seiten und baue visuelle Spiele…"
+                    : "Reading pages and building visuals…"
+                  : language === "de"
+                    ? "Runden werden entworfen…"
+                    : "Designing your rounds…"
                 : sourcePdf
-                  ? "Generate visual showdown ✦"
-                  : "Generate showdown ✦"}
+                  ? language === "de"
+                    ? "Visuellen Showdown generieren ✦"
+                    : "Generate visual showdown ✦"
+                  : language === "de"
+                    ? "Showdown generieren ✦"
+                    : "Generate showdown ✦"}
             </button>
             <p className="mt-3 text-center text-xs text-white/30">
               {sourcePdf
-                ? "Visual PDF analysis uses more input tokens than text-only generation."
-                : "One generation uses a small amount of your OpenAI API credit."}
+                ? language === "de"
+                  ? "Visuelle PDF-Analyse verbraucht mehr Input-Tokens als reine Textgenerierung."
+                  : "Visual PDF analysis uses more input tokens than text-only generation."
+                : language === "de"
+                  ? "Die tatsächlichen Tokenkosten werden nach der Generierung angezeigt."
+                  : "Actual token cost is shown after generation."}
             </p>
           </section>
           <aside className="h-fit rounded-2xl border border-white/10 bg-white/[.05] p-5">
             <p className="text-xs font-black uppercase tracking-[.18em] text-[#8f78ff]">
-              What GPT builds
+              {language === "de" ? "WAS GPT ERSTELLT" : "WHAT GPT BUILDS"}
             </p>
             <ul className="mt-4 space-y-4 text-sm text-white/60">
               <li>
@@ -351,12 +404,14 @@ export function GameBuilder() {
               </li>
             </ul>
             <div className="mt-5 rounded-xl border border-[#ff6fae]/20 bg-[#ff6fae]/8 p-4 text-xs leading-5 text-[#ffacd0]">
-              PDFs up to 6 pages unlock visual model building and can be
-              understood even when they are scans.
+              {language === "de"
+                ? "PDFs mit bis zu 6 Seiten ermöglichen visuelle Modellspiele und werden auch als Scan verstanden."
+                : "PDFs up to 6 pages unlock visual model building and can be understood even when they are scans."}
             </div>
             <div className="mt-6 rounded-xl bg-[#72f0c5]/8 p-4 text-xs leading-5 text-[#a4f7dc]">
-              Output is checked against the game schema before it can reach
-              players.
+              {language === "de"
+                ? "Jede Ausgabe wird gegen das Game-Pack-Schema geprüft, bevor Spieler sie sehen."
+                : "Output is checked against the game schema before it can reach players."}
             </div>
           </aside>
         </div>
